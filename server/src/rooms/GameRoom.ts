@@ -68,6 +68,9 @@ export class GameRoom extends Room<GameStateSchema> {
     this.onMessage("move", (client, data) => this.handleMove(client, data));
     this.onMessage("ability", (client, data) => this.handleAbility(client, data));
     this.onMessage("playAgain", () => this.resetToLobby());
+    this.onMessage("strokeUpdate", (client, data) => this.relayToOpponent(client, "opponentStroke", data));
+    this.onMessage("strokeUndo", (client) => this.relayToOpponent(client, "opponentStrokeUndo", {}));
+    this.onMessage("strokeClear", (client) => this.relayToOpponent(client, "opponentStrokeClear", {}));
 
     console.log(`Room ${this.state.roomCode} created`);
   }
@@ -95,6 +98,15 @@ export class GameRoom extends Room<GameStateSchema> {
   onDispose(): void {
     this.clearIntervals();
     console.log(`Room ${this.state.roomCode} disposed`);
+  }
+
+  private relayToOpponent(sender: Client, messageType: string, data: unknown): void {
+    if (this.state.phase !== "drawing") return;
+    for (const client of this.clients) {
+      if (client.sessionId !== sender.sessionId) {
+        client.send(messageType, data);
+      }
+    }
   }
 
   // ---- Message Handlers ----

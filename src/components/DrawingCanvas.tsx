@@ -13,6 +13,9 @@ interface DrawingCanvasProps {
   onSubmit: (imageData: string) => void;
   timeRemaining: number;
   disabled?: boolean;
+  onStrokeComplete?: (stroke: Stroke) => void;
+  onStrokeUndo?: () => void;
+  onStrokeClear?: () => void;
 }
 
 export default function DrawingCanvas({
@@ -20,6 +23,9 @@ export default function DrawingCanvas({
   onSubmit,
   timeRemaining,
   disabled = false,
+  onStrokeComplete,
+  onStrokeUndo,
+  onStrokeClear,
 }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -153,6 +159,7 @@ export default function DrawingCanvas({
     if (currentStroke && currentStroke.points.length >= 2) {
       setUndoStack((prev) => [...prev, strokes]);
       setStrokes((prev) => [...prev, currentStroke]);
+      onStrokeComplete?.(currentStroke);
     }
     setCurrentStroke(null);
     setIsDrawing(false);
@@ -163,11 +170,13 @@ export default function DrawingCanvas({
     const previousStrokes = undoStack[undoStack.length - 1];
     setStrokes(previousStrokes);
     setUndoStack((prev) => prev.slice(0, -1));
+    onStrokeUndo?.();
   };
 
   const handleClear = () => {
     setUndoStack((prev) => [...prev, strokes]);
     setStrokes([]);
+    onStrokeClear?.();
   };
 
   const handleSubmit = () => {
@@ -184,27 +193,22 @@ export default function DrawingCanvas({
   };
 
   return (
-    <div className="flex flex-col h-full w-full gap-3">
-      {/* Top bar: timer + ink meter */}
-      <div className="flex items-center justify-between px-4">
-        <div className="font-hand text-2xl font-bold">
-          {formatTime(timeRemaining)}
-        </div>
+    <div className="flex flex-col h-full w-full gap-2">
+      <div className="flex items-center justify-between px-2 h-9">
         <InkMeter fraction={inkRemaining} />
         <button
           onClick={handleSubmit}
           disabled={disabled || strokes.length === 0}
-          className="sketchy-button bg-green-400 text-black px-6 py-2 font-hand text-lg disabled:opacity-40"
+          className="sketchy-button bg-green-400 text-black px-5 py-1.5 font-hand text-base disabled:opacity-40"
         >
           Done!
         </button>
       </div>
 
-      {/* Canvas */}
-      <div className="flex flex-grow flex-1 relative border-2 border-dashed border-gray-400 rounded-lg overflow-hidden bg-[#fefef6]">
+      <div className="flex-1 relative border-2 border-dashed border-gray-400 rounded-lg overflow-hidden bg-[#fefef6]">
         <canvas
           ref={canvasRef}
-          className="h-[400px]"
+          className="absolute inset-0 w-full h-full"
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
@@ -212,14 +216,11 @@ export default function DrawingCanvas({
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
-
         />
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-center gap-3 px-4 py-2 flex-wrap">
-        {/* Colors */}
-        <div className="flex gap-1.5">
+      <div className="flex items-center justify-center gap-2 px-2 py-1 flex-wrap">
+        <div className="flex gap-1">
           {COLORS.map((color) => (
             <button
               key={color}
@@ -227,7 +228,7 @@ export default function DrawingCanvas({
                 setSelectedColor(color);
                 setIsEraser(false);
               }}
-              className={`w-8 h-8 rounded-full border-2 transition-transform ${
+              className={`w-7 h-7 rounded-full border-2 transition-transform ${
                 selectedColor === color && !isEraser
                   ? "border-gray-800 scale-125 ring-2 ring-gray-400"
                   : "border-gray-300"
@@ -237,11 +238,9 @@ export default function DrawingCanvas({
           ))}
         </div>
 
-        {/* Separator */}
-        <div className="w-px h-8 bg-gray-300" />
+        <div className="w-px h-6 bg-gray-300" />
 
-        {/* Line widths */}
-        <div className="flex gap-1.5 items-center">
+        <div className="flex gap-1 items-center">
           {LINE_WIDTHS.map((w) => (
             <button
               key={w}
@@ -249,7 +248,7 @@ export default function DrawingCanvas({
                 setSelectedWidth(w);
                 setIsEraser(false);
               }}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-transform ${
+              className={`flex items-center justify-center w-7 h-7 rounded-lg border transition-transform ${
                 selectedWidth === w && !isEraser
                   ? "border-gray-800 bg-gray-100 scale-110"
                   : "border-gray-300"
@@ -263,13 +262,11 @@ export default function DrawingCanvas({
           ))}
         </div>
 
-        {/* Separator */}
-        <div className="w-px h-8 bg-gray-300" />
+        <div className="w-px h-6 bg-gray-300" />
 
-        {/* Eraser */}
         <button
           onClick={() => setIsEraser(!isEraser)}
-          className={`px-3 py-1.5 rounded-lg border font-hand text-sm transition-transform ${
+          className={`px-2 py-1 rounded-lg border font-hand text-sm transition-transform ${
             isEraser
               ? "border-gray-800 bg-pink-100 scale-110"
               : "border-gray-300 bg-white"
@@ -278,20 +275,18 @@ export default function DrawingCanvas({
           Eraser
         </button>
 
-        {/* Undo */}
         <button
           onClick={handleUndo}
           disabled={undoStack.length === 0}
-          className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-hand text-sm disabled:opacity-30"
+          className="px-2 py-1 rounded-lg border border-gray-300 bg-white font-hand text-sm disabled:opacity-30"
         >
           Undo
         </button>
 
-        {/* Clear */}
         <button
           onClick={handleClear}
           disabled={strokes.length === 0}
-          className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white font-hand text-sm disabled:opacity-30"
+          className="px-2 py-1 rounded-lg border border-gray-300 bg-white font-hand text-sm disabled:opacity-30"
         >
           Clear
         </button>

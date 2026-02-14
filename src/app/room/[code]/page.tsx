@@ -7,11 +7,13 @@ import { createRoom, joinOrCreate } from "@/lib/colyseus";
 import { extractSprite, autoDetectBounds } from "@/lib/sprites";
 import Lobby from "@/components/Lobby";
 import DrawingCanvas from "@/components/DrawingCanvas";
+import OpponentCanvas from "@/components/OpponentCanvas";
 import RevealScreen from "@/components/RevealScreen";
 import ResultScreen from "@/components/ResultScreen";
 import HealthBar from "@/components/HealthBar";
 import AbilityHUD from "@/components/AbilityHUD";
 import type { FighterConfig } from "@shared/types";
+import type { Stroke } from "@/lib/ink";
 import Link from "next/link";
 
 // Dynamically import BattleWrapper (Phaser is client-side only)
@@ -64,6 +66,7 @@ export default function GameRoomPage() {
   const [spriteDataMap, setSpriteDataMap] = useState<Map<string, string>>(new Map());
   const [myFighterConfig, setMyFighterConfig] = useState<FighterConfig | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [opponentStrokes, setOpponentStrokes] = useState<Stroke[]>([]);
 
   const roomRef = useRef<Room | null>(null);
   const myDrawingDataRef = useRef<string>("");
@@ -138,6 +141,21 @@ export default function GameRoomPage() {
           if (myDrawingDataRef.current) {
             analyzeDrawing(r, myDrawingDataRef.current);
           }
+        });
+
+        r.onMessage("opponentStroke", (stroke: Stroke) => {
+          if (!mounted) return;
+          setOpponentStrokes((prev) => [...prev, stroke]);
+        });
+
+        r.onMessage("opponentStrokeUndo", () => {
+          if (!mounted) return;
+          setOpponentStrokes((prev) => prev.slice(0, -1));
+        });
+
+        r.onMessage("opponentStrokeClear", () => {
+          if (!mounted) return;
+          setOpponentStrokes([]);
         });
 
         r.onError((code, message) => {
@@ -256,6 +274,7 @@ export default function GameRoomPage() {
       setMyDrawingData("");
       setMyFighterConfig(null);
       setSpriteDataMap(new Map());
+      setOpponentStrokes([]);
     }
   }, [room]);
 
@@ -367,26 +386,36 @@ export default function GameRoomPage() {
 
         {/* DRAWING PHASE */}
         {phase === "drawing" && (
-          <div className="flex-1 flex flex-col p-4">
-            <div className="text-center mb-2">
-              <h2 className="text-3xl font-bold text-gray-800">
-                Draw your champion!
-              </h2>
-              <p className="text-lg text-gray-500">
-                Draw a creature, add attacks (arrows + &quot;+fire&quot;), annotate abilities
-              </p>
+          <div className="flex-1 flex flex-col p-4 gap-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-800">Draw your champion!</h2>
+              <div className="font-hand text-2xl font-bold tabular-nums">{Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, "0")}</div>
             </div>
-            <div className="flex-1">
-              <DrawingCanvas
-                inkBudget={inkBudget}
-                onSubmit={handleDrawingSubmit}
-                timeRemaining={timer}
-                disabled={myPlayer?.drawingSubmitted || false}
-              />
+            <div className="flex gap-4 flex-1 min-h-0">
+              <div className="flex-1 flex flex-col min-w-0">
+                <p className="font-hand text-base text-gray-500 text-center mb-1">Your Drawing</p>
+                <div className="flex-1 min-h-0">
+                  <DrawingCanvas
+                    inkBudget={inkBudget}
+                    onSubmit={handleDrawingSubmit}
+                    timeRemaining={timer}
+                    disabled={myPlayer?.drawingSubmitted || false}
+                    onStrokeComplete={(stroke) => room?.send("strokeUpdate", stroke)}
+                    onStrokeUndo={() => room?.send("strokeUndo", {})}
+                    onStrokeClear={() => room?.send("strokeClear", {})}
+                  />
+                </div>
+              </div>
+              <div className="flex-1 flex flex-col min-w-0">
+                <p className="font-hand text-base text-gray-500 text-center mb-1">{opponentPlayer?.name || "Opponent"}&apos;s Drawing</p>
+                <div className="flex-1 min-h-0">
+                  <OpponentCanvas strokes={opponentStrokes} />
+                </div>
+              </div>
             </div>
             {myPlayer?.drawingSubmitted && (
-              <div className="text-center py-4">
-                <p className="text-xl text-green-600 font-bold">
+              <div className="text-center">
+                <p className="text-lg text-green-600 font-bold">
                   Drawing submitted! Waiting for opponent...
                 </p>
               </div>
