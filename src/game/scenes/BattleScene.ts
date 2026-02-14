@@ -87,8 +87,10 @@ export class BattleScene extends Phaser.Scene {
       const target = this.fighters.get(fd.targetId);
       if (target) {
         const dx = fd.sprite.x - target.sprite.x;
-        const dy = fd.sprite.y - target.sprite.y;
-        if (Math.abs(dx) < 50 && Math.abs(dy) < 55) {
+        const drawY = fd.sprite.y;
+        const targetY = target.sprite.y;
+        const hasReachedFighter = drawY >= targetY - 25;
+        if (Math.abs(dx) < 50 && hasReachedFighter && drawY <= targetY + 60) {
           fd.hit = true;
           const body = fd.sprite.body as Phaser.Physics.Arcade.Body;
           if (body) {
@@ -474,7 +476,7 @@ export class BattleScene extends Phaser.Scene {
 
   private playDrawAttack(_ownerId: string, target: FighterDisplay, drawingData?: string): void {
     const spawnX = target.targetX;
-    const spawnY = target.targetY - 160;
+    const spawnY = target.targetY - 260;
 
     const spawnFallingDrawing = (textureKey: string) => {
       if (!this.textures.exists(textureKey)) return;
@@ -484,7 +486,7 @@ export class BattleScene extends Phaser.Scene {
 
       this.physics.add.existing(drawSprite, false);
       const body = drawSprite.body as Phaser.Physics.Arcade.Body;
-      body.setGravityY(400);
+      body.setGravityY(450);
       body.setCollideWorldBounds(true);
       body.setSize(drawSprite.displayWidth * 0.85, drawSprite.displayHeight * 0.85);
 
@@ -552,7 +554,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.physics.add.existing(drawSprite, false);
     const body = drawSprite.body as Phaser.Physics.Arcade.Body;
-    body.setGravityY(400);
+    body.setGravityY(450);
     body.setCollideWorldBounds(true);
     body.setSize(75, 75);
 

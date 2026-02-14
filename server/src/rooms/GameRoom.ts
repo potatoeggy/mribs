@@ -189,6 +189,8 @@ export class GameRoom extends Room<GameStateSchema> {
       player.fighterDescription = config.description;
       player.maxHp = config.health.maxHp;
       player.hp = config.health.maxHp;
+      const moves = this.playerGestureMoves.get(client.sessionId) ?? [];
+      player.gestureMoveSummary = JSON.stringify(moves.map((m) => ({ action: m.action, power: m.power })));
 
       // Populate abilities
       player.abilities.clear();
@@ -432,6 +434,7 @@ export class GameRoom extends Room<GameStateSchema> {
       player.fighterName = "";
       player.fighterDescription = "";
       player.spriteData = "";
+      player.gestureMoveSummary = "";
       player.abilities.clear();
     });
 

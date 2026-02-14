@@ -43,7 +43,7 @@ GESTURE MOVES (required):
 - Each move: { "id": "unique-id", "gesture": "tap"|"swipe"|"draw", "action": "short description", "power": 5-25 }
 - Gesture moves must be OFFENSIVE attacks that deal damage. Do NOT suggest defensive actions like shield, block, or protect. Only suggest attacks that fit the creature: e.g. Pounce, Scratch, Bite, Slash, Drop on them, Slam, Chomp, Sting, etc.
 - Use at least one of each gesture type if you have 3 moves; for 2 moves use tap and swipe. Power should be balanced (e.g. tap=5-10, swipe=10-18, draw=12-25).
-- Actions should fit the creature (e.g. cat: tap="Pounce", swipe="Scratch", draw="Bite").
+- "action" is the ATTACK NAME only: short, punchy, creative (e.g. Whisker Whack, Ink Splatter, Shadow Bite, Poop Bomb). No gesture labels—do not include "tap", "swipe", or "draw" in the action name.
 
 You MUST respond with a valid JSON object matching the FighterConfig schema. Be creative with names and descriptions!`;
 
