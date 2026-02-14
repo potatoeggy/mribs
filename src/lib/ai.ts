@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { FighterConfig } from "@shared/types";
+import type { FighterConfig, GestureMove } from "@shared/types";
 
 const SYSTEM_PROMPT = `You are the game master for "Scribble Fighters", a drawing combat game. Players hand-draw creatures and their attacks on a canvas. You must analyze the drawing and determine what the creature is, what combat abilities it should have, and assign balanced stats.
 
@@ -37,6 +37,13 @@ TEXT ANNOTATIONS:
 SPRITE BOUNDS:
 - Identify the bounding box of the MAIN creature body (not annotations or separate attack drawings)
 - Return as { x, y, width, height } in pixel coordinates (canvas is typically ~800x500)
+
+GESTURE MOVES (required):
+- Return exactly 2 or 3 "gestureMoves" for battle. Each move is performed by the player doing a gesture: "tap" (quick tap), "swipe" (swipe on screen), or "draw" (draw something on battle canvas).
+- Each move: { "id": "unique-id", "gesture": "tap"|"swipe"|"draw", "action": "short description", "power": 5-25 }
+- Gesture moves must be OFFENSIVE attacks that deal damage. Do NOT suggest defensive actions like shield, block, or protect. Only suggest attacks that fit the creature: e.g. Pounce, Scratch, Bite, Slash, Drop on them, Slam, Chomp, Sting, etc.
+- Use at least one of each gesture type if you have 3 moves; for 2 moves use tap and swipe. Power should be balanced (e.g. tap=5-10, swipe=10-18, draw=12-25).
+- Actions should fit the creature (e.g. cat: tap="Pounce", swipe="Scratch", draw="Bite").
 
 You MUST respond with a valid JSON object matching the FighterConfig schema. Be creative with names and descriptions!`;
 
@@ -104,8 +111,24 @@ const FIGHTER_CONFIG_SCHEMA = {
       required: ["x", "y", "width", "height"],
     },
     balanceScore: { type: "number" as const },
+    gestureMoves: {
+      type: "array" as const,
+      minItems: 2,
+      maxItems: 3,
+      items: {
+        type: "object" as const,
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" as const },
+          gesture: { type: "string" as const, enum: ["tap", "swipe", "draw"] },
+          action: { type: "string" as const },
+          power: { type: "number" as const },
+        },
+        required: ["id", "gesture", "action", "power"],
+      },
+    },
   },
-  required: ["name", "description", "health", "movement", "abilities", "spriteBounds", "balanceScore"],
+  required: ["name", "description", "health", "movement", "abilities", "spriteBounds", "balanceScore", "gestureMoves"],
 };
 
 /**
@@ -131,7 +154,7 @@ export async function analyzeDrawing(imageBase64: string): Promise<FighterConfig
         content: [
           {
             type: "text",
-            text: "Analyze this hand-drawn creature for Scribble Fighters. Determine its abilities, stats, and sprite bounds. Return a JSON FighterConfig.",
+            text: "Analyze this hand-drawn creature for Scribble Fighters. Determine its abilities, stats, sprite bounds, and 2-3 gestureMoves (tap, swipe, draw). Return a JSON FighterConfig with gestureMoves.",
           },
           {
             type: "image_url",
@@ -165,6 +188,26 @@ export async function analyzeDrawing(imageBase64: string): Promise<FighterConfig
 }
 
 /**
+ * Ensure gestureMoves exist and are valid; add fallback if missing.
+ */
+function ensureGestureMoves(config: FighterConfig): GestureMove[] {
+  const moves = config.gestureMoves;
+  if (Array.isArray(moves) && moves.length >= 2) {
+    return moves.slice(0, 3).map((m) => ({
+      id: m.id || `move-${m.gesture}-${Math.random().toString(36).slice(2, 8)}`,
+      gesture: ["tap", "swipe", "draw"].includes(m.gesture) ? m.gesture : "tap",
+      action: typeof m.action === "string" ? m.action : "Attack",
+      power: typeof m.power === "number" ? Math.max(5, Math.min(25, m.power)) : 10,
+    }));
+  }
+  return [
+    { id: "tap-1", gesture: "tap", action: "Pounce", power: 8 },
+    { id: "swipe-1", gesture: "swipe", action: "Scratch", power: 14 },
+    { id: "draw-1", gesture: "draw", action: "Special attack", power: 18 },
+  ];
+}
+
+/**
  * Validate and fix a FighterConfig to ensure it's within bounds.
  */
 function validateAndFixConfig(config: FighterConfig): FighterConfig {
@@ -194,6 +237,8 @@ function validateAndFixConfig(config: FighterConfig): FighterConfig {
 
   config.balanceScore = clamp(config.balanceScore, 1, 10);
 
+  config.gestureMoves = ensureGestureMoves(config);
+
   return config;
 }
 
@@ -222,5 +267,10 @@ export function fallbackFighterConfig(): FighterConfig {
     ],
     spriteBounds: { x: 100, y: 50, width: 150, height: 150 },
     balanceScore: 5,
+    gestureMoves: [
+      { id: "tap-1", gesture: "tap", action: "Pounce", power: 8 },
+      { id: "swipe-1", gesture: "swipe", action: "Scratch", power: 14 },
+      { id: "draw-1", gesture: "draw", action: "Ink blast", power: 18 },
+    ],
   };
 }

@@ -258,6 +258,27 @@ export class BattleSimulation {
   }
 
   /**
+   * Process a gesture-based attack (tap, swipe, or draw). Applies damage to opponent.
+   */
+  handleGestureAttack(playerId: string, damage: number): void {
+    const fighter = this.fighters.get(playerId);
+    if (!fighter || fighter.hp <= 0) return;
+
+    const opponent = this.getOpponent(playerId);
+    if (!opponent || opponent.hp <= 0) return;
+
+    this.applyDamage(opponent, damage);
+    this.events.push({
+      type: "meleeHit",
+      playerId,
+      targetId: opponent.id,
+      amount: damage,
+      x: opponent.x,
+      y: opponent.y - 30,
+    });
+  }
+
+  /**
    * Run one physics tick.
    */
   tick(dt: number): BattleEvent[] {

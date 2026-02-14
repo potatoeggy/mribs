@@ -67,9 +67,11 @@ export default function GameRoomPage() {
   const [myFighterConfig, setMyFighterConfig] = useState<FighterConfig | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [opponentStrokes, setOpponentStrokes] = useState<Stroke[]>([]);
+  const [showResultScreen, setShowResultScreen] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
   const myDrawingDataRef = useRef<string>("");
+  const resultDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Connect to room
   useEffect(() => {
@@ -100,10 +102,24 @@ export default function GameRoomPage() {
         // Listen for state changes
         r.onStateChange((state: Record<string, unknown>) => {
           if (!mounted) return;
-          setPhase(state.phase as string);
+          const newPhase = state.phase as string;
+          setPhase(newPhase);
           setTimer(Math.ceil(state.timer as number));
           setRoomCode(state.roomCode as string);
           setWinnerId(state.winnerId as string);
+          if (newPhase === "result") {
+            setShowResultScreen(false);
+            if (resultDelayRef.current) clearTimeout(resultDelayRef.current);
+            resultDelayRef.current = setTimeout(() => {
+              setShowResultScreen(true);
+              resultDelayRef.current = null;
+            }, 1500);
+          }
+          if (newPhase !== "result" && resultDelayRef.current) {
+            clearTimeout(resultDelayRef.current);
+            resultDelayRef.current = null;
+            setShowResultScreen(false);
+          }
           setInkBudget(state.inkBudget as number);
           setDrawingTimeLimit(state.drawingTimeLimit as number);
 
@@ -509,8 +525,8 @@ export default function GameRoomPage() {
           />
         )}
 
-        {/* BATTLE PHASE */}
-        {phase === "battle" && room && (
+        {/* BATTLE PHASE (or result phase during death animation delay) */}
+        {(phase === "battle" || (phase === "result" && !showResultScreen)) && room && (
           <div className="flex-1 flex flex-col gap-3 p-4">
             {/* HP Bars */}
             <div className="flex items-start justify-between gap-8 px-4">
@@ -529,34 +545,37 @@ export default function GameRoomPage() {
               />
             </div>
 
-            {/* Battle Arena */}
+            {/* Battle Arena + Gesture controls (tap/swipe on arena, draw below) */}
             <BattleWrapper
               room={room}
               mySessionId={mySessionId}
               playerAbilities={myAbilities}
               spriteDataMap={spriteDataMap}
+              gestureMoves={phase === "battle" ? (myFighterConfig?.gestureMoves ?? []) : []}
             />
 
-            {/* Ability HUD */}
-            <div className="flex justify-center">
-              <AbilityHUD
-                abilities={
-                  myPlayer?.abilities?.map((a) => ({
-                    type: a.abilityType,
-                    label: a.label || a.abilityType,
-                    cooldownRemaining: a.cooldownRemaining,
-                    cooldownMax: a.cooldownMax,
-                  })) || []
-                }
-                ink={myPlayer?.ink || 0}
-                maxInk={myPlayer?.maxInk || 100}
-              />
-            </div>
+            {/* Legacy Ability HUD (hidden when using gesture moves) */}
+            {phase === "battle" && (!myFighterConfig?.gestureMoves?.length) && (
+              <div className="flex justify-center">
+                <AbilityHUD
+                  abilities={
+                    myPlayer?.abilities?.map((a) => ({
+                      type: a.abilityType,
+                      label: a.label || a.abilityType,
+                      cooldownRemaining: a.cooldownRemaining,
+                      cooldownMax: a.cooldownMax,
+                    })) || []
+                  }
+                  ink={myPlayer?.ink || 0}
+                  maxInk={myPlayer?.maxInk || 100}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {/* RESULT PHASE */}
-        {phase === "result" && (
+        {/* RESULT PHASE (after death animation delay) */}
+        {phase === "result" && showResultScreen && (
           <ResultScreen
             winnerId={winnerId}
             mySessionId={mySessionId}
