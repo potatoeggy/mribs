@@ -201,10 +201,10 @@ export default function DrawingCanvas({
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 relative border-2 border-dashed border-gray-400 rounded-lg overflow-hidden bg-[#fefef6]">
+      <div className="flex flex-grow flex-1 relative border-2 border-dashed border-gray-400 rounded-lg overflow-hidden bg-[#fefef6]">
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 cursor-crosshair touch-none"
+          className="h-[400px]"
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
@@ -212,6 +212,7 @@ export default function DrawingCanvas({
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
+
         />
       </div>
 
