@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState } from "react";
 import type { Room } from "colyseus.js";
 import type { GestureMove } from "@shared/types";
 import BattleGestureControls from "./BattleGestureControls";
@@ -8,6 +8,7 @@ import BattleGestureControls from "./BattleGestureControls";
 const TAP_MAX_MS = 250;
 const TAP_MAX_DIST = 20;
 const SWIPE_MIN_DIST = 40;
+const GESTURE_COOLDOWN_MS = 1200;
 
 interface BattleWrapperProps {
   room: Room;
@@ -76,6 +77,43 @@ export default function BattleWrapper({
   const pointerRef = useRef<{ x: number; y: number; t: number } | null>(null);
   roomRef.current = room;
 
+  const cooldownEndsRef = useRef<Record<string, number>>({});
+  const [cooldownProgress, setCooldownProgress] = useState<Record<string, number>>({});
+  const rafRef = useRef<number>(0);
+  const loopRunningRef = useRef(false);
+
+  const ensureCooldownLoop = useCallback(() => {
+    if (loopRunningRef.current) return;
+    loopRunningRef.current = true;
+    const tick = () => {
+      const now = Date.now();
+      const ends = cooldownEndsRef.current;
+      let hasActive = false;
+      const next: Record<string, number> = {};
+      for (const id in ends) {
+        const remaining = ends[id] - now;
+        if (remaining > 0) {
+          next[id] = remaining / GESTURE_COOLDOWN_MS;
+          hasActive = true;
+        }
+      }
+      setCooldownProgress(next);
+      if (hasActive) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        loopRunningRef.current = false;
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      loopRunningRef.current = false;
+    };
+  }, []);
+
   const getMoveByGesture = useCallback(
     (gesture: "tap" | "swipe" | "draw") => gestureMoves.find((m) => m.gesture === gesture),
     [gestureMoves]
@@ -84,8 +122,13 @@ export default function BattleWrapper({
   const onGestureAttack = useCallback(
     (moveId: string, drawingData?: string) => {
       room.send("gestureAttack", { moveId, drawingData });
+      const now = Date.now();
+      if (now >= (cooldownEndsRef.current[moveId] ?? 0)) {
+        cooldownEndsRef.current[moveId] = now + GESTURE_COOLDOWN_MS;
+      }
+      ensureCooldownLoop();
     },
-    [room]
+    [room, ensureCooldownLoop]
   );
 
   const handleOverlayPointerDown = useCallback(
@@ -219,7 +262,7 @@ export default function BattleWrapper({
         )}
       </div>
       {gestureMoves.length > 0 && (
-        <BattleGestureControls gestureMoves={gestureMoves} onGestureAttack={onGestureAttack} />
+        <BattleGestureControls gestureMoves={gestureMoves} onGestureAttack={onGestureAttack} cooldownProgress={cooldownProgress} />
       )}
     </div>
   );
