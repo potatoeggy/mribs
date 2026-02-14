@@ -1,13 +1,20 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import type { Room } from "colyseus.js";
+import type { GestureMove } from "@shared/types";
+import BattleGestureControls from "./BattleGestureControls";
+
+const TAP_MAX_MS = 250;
+const TAP_MAX_DIST = 20;
+const SWIPE_MIN_DIST = 40;
 
 interface BattleWrapperProps {
   room: Room;
   mySessionId: string;
   playerAbilities: string[];
   spriteDataMap: Map<string, string>;
+  gestureMoves?: GestureMove[];
 }
 
 function parseRoomState(room: Room) {
@@ -60,11 +67,64 @@ export default function BattleWrapper({
   mySessionId: _mySessionId,
   playerAbilities: _playerAbilities,
   spriteDataMap,
+  gestureMoves = [],
 }: BattleWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const arenaWrapperRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<import("phaser").Game | null>(null);
   const roomRef = useRef(room);
+  const pointerRef = useRef<{ x: number; y: number; t: number } | null>(null);
   roomRef.current = room;
+
+  const getMoveByGesture = useCallback(
+    (gesture: "tap" | "swipe" | "draw") => gestureMoves.find((m) => m.gesture === gesture),
+    [gestureMoves]
+  );
+
+  const onGestureAttack = useCallback(
+    (moveId: string, drawingData?: string) => {
+      room.send("gestureAttack", { moveId, drawingData });
+    },
+    [room]
+  );
+
+  const handleOverlayPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!gestureMoves.length) return;
+      const rect = arenaWrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      pointerRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        t: Date.now(),
+      };
+    },
+    [gestureMoves.length]
+  );
+
+  const handleOverlayPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!pointerRef.current || !gestureMoves.length) return;
+      const rect = arenaWrapperRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const dx = x - pointerRef.current.x;
+      const dy = y - pointerRef.current.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const duration = Date.now() - pointerRef.current.t;
+      pointerRef.current = null;
+
+      if (duration <= TAP_MAX_MS && dist <= TAP_MAX_DIST) {
+        const move = getMoveByGesture("tap");
+        if (move) onGestureAttack(move.id);
+      } else if (dist >= SWIPE_MIN_DIST) {
+        const move = getMoveByGesture("swipe");
+        if (move) onGestureAttack(move.id);
+      }
+    },
+    [gestureMoves.length, getMoveByGesture, onGestureAttack]
+  );
 
   useEffect(() => {
     let game: import("phaser").Game | null = null;
@@ -115,6 +175,18 @@ export default function BattleWrapper({
             }
           }
         });
+
+        currentRoom.onMessage("gestureAttackVisual", (data: Record<string, unknown>) => {
+          if (!scene) return;
+          scene.playGestureAttackVisual({
+            playerId: data.playerId as string,
+            targetId: data.targetId as string,
+            gesture: data.gesture as string,
+            action: data.action as string,
+            power: data.power as number,
+            drawingData: data.drawingData as string | undefined,
+          });
+        });
       });
     };
 
@@ -132,9 +204,23 @@ export default function BattleWrapper({
   return (
     <div className="flex flex-col items-center gap-2 w-full">
       <div
-        ref={containerRef}
-        className="w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
-      />
+        ref={arenaWrapperRef}
+        className="relative w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
+      >
+        <div ref={containerRef} className="absolute inset-0" />
+        {gestureMoves.length > 0 && (
+          <div
+            className="absolute inset-0 touch-none cursor-crosshair"
+            onPointerDown={handleOverlayPointerDown}
+            onPointerUp={handleOverlayPointerUp}
+            onPointerLeave={() => { pointerRef.current = null; }}
+            onPointerCancel={() => { pointerRef.current = null; }}
+          />
+        )}
+      </div>
+      {gestureMoves.length > 0 && (
+        <BattleGestureControls gestureMoves={gestureMoves} onGestureAttack={onGestureAttack} />
+      )}
     </div>
   );
 }
