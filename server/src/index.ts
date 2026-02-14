@@ -1,5 +1,8 @@
+import { Encoder } from "@colyseus/schema";
 import { Server, matchMaker } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
+
+Encoder.BUFFER_SIZE = 64 * 1024;
 import { monitor } from "@colyseus/monitor";
 import express from "express";
 import cors from "cors";

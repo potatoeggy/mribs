@@ -67,6 +67,19 @@ npm run dev
 - **Draw circle**: Activate shield
 - **Swipe up**: Fly / jump
 
+## Live Commentator (LiveAvatar)
+
+During battles, a live AI commentator speaks play-by-play using HeyGen's LiveAvatar. To enable it:
+
+1. Get an API key from [LiveAvatar](https://app.liveavatar.com) (or use your HeyGen key)
+2. Add to `.env.local`:
+   ```
+   LIVEAVATAR_API_KEY=your-key
+   # or HEYGEN_API_KEY=your-heygen-key (fallback)
+   ```
+
+The commentator auto-picks an avatar and voice. To customize (e.g. Toronto accent), pass `avatarId` and `voiceId` to `LiveCommentator`—fetch options from `/api/liveavatar/avatars` and `/api/liveavatar/voices`.
+
 ## Tech Stack
 
 - **Next.js 14** - Web framework

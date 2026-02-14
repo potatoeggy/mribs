@@ -27,6 +27,14 @@ const BattleWrapper = dynamic(() => import("@/components/BattleWrapper"), {
   ),
 });
 
+// Live commentator (LiveAvatar) - client-only
+const LiveCommentator = dynamic(() => import("@/components/LiveCommentator"), {
+  ssr: false,
+});
+
+/** Host-only commentator (Free tier = 1 concurrency). Set to false for both players when on Essential+ (20 concurrency). */
+const COMMENTATOR_HOST_ONLY = true;
+
 interface GestureMoveSummary {
   action: string;
   power: number;
@@ -78,8 +86,13 @@ export default function GameRoomPage() {
   const roomRef = useRef<Room | null>(null);
   const myDrawingDataRef = useRef<string>("");
   const previousPhaseRef = useRef<string>("");
+  const commentatorRef = useRef<{ speak: (text: string) => void } | null>(null);
   const resultPhaseStartRef = useRef<number>(0);
+  const battleStartSpokenRef = useRef(false);
+  const [drawingRoundKey, setDrawingRoundKey] = useState(0);
+  const [battleCountdown, setBattleCountdown] = useState(0);
   const RESULT_DELAY_MS = 1700;
+  const BATTLE_COUNTDOWN_SEC = 6;
 
   // Connect to room
   useEffect(() => {
@@ -106,6 +119,10 @@ export default function GameRoomPage() {
         setRoom(r);
         setMySessionId(r.sessionId);
         setPhase("lobby");
+        setOpponentStrokes([]);
+        setMyDrawingData("");
+        myDrawingDataRef.current = "";
+        setDrawingRoundKey((k) => k + 1);
 
         // Listen for state changes
         r.onStateChange((state: Record<string, unknown>) => {
@@ -208,6 +225,56 @@ export default function GameRoomPage() {
       }
     };
   }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear opponent canvas when entering drawing phase (handles browser back/cached page ghost drawings)
+  useEffect(() => {
+    if (phase === "drawing") {
+      setOpponentStrokes([]);
+    }
+  }, [phase]);
+
+  // Battle countdown: "Ready... 3... 2... 1... START!!!" - blocks attacks until commentator can load
+  const battleCountdownStartRef = useRef<number>(0);
+  useEffect(() => {
+    if (phase !== "battle") {
+      setBattleCountdown(0);
+      return;
+    }
+    battleCountdownStartRef.current = Date.now();
+    const tick = () => {
+      const elapsed = (Date.now() - battleCountdownStartRef.current) / 1000;
+      const remaining = Math.max(0, BATTLE_COUNTDOWN_SEC - elapsed);
+      setBattleCountdown(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 100);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  // Battle-start commentator intro (at end of countdown, commentator should be ready)
+  useEffect(() => {
+    if (phase !== "battle") {
+      battleStartSpokenRef.current = false;
+      return;
+    }
+    const t = setTimeout(async () => {
+      if (battleStartSpokenRef.current) return;
+      battleStartSpokenRef.current = true;
+      try {
+        const res = await fetch("/api/commentary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventType: "battleStart" }),
+        });
+        const data = await res.json();
+        const line = data?.line || "Let's get ready to rumble!";
+        commentatorRef.current?.speak(line);
+      } catch {
+        commentatorRef.current?.speak("Let's get ready to rumble!");
+      }
+    }, BATTLE_COUNTDOWN_SEC * 1000);
+    return () => clearTimeout(t);
+  }, [phase]);
 
   // After K.O., wait RESULT_DELAY_MS before showing the result screen (interval-based so it’s reliable)
   useEffect(() => {
@@ -431,6 +498,7 @@ export default function GameRoomPage() {
                 <p className="font-hand text-base text-gray-500 text-center mb-1">Your Drawing</p>
                 <div className="flex-1 min-h-0">
                   <DrawingCanvas
+                    key={`drawing-${drawingRoundKey}`}
                     inkBudget={inkBudget}
                     onSubmit={handleDrawingSubmit}
                     timeRemaining={timer}
@@ -548,32 +616,33 @@ export default function GameRoomPage() {
           </div>
         )}
 
-        {/* REVEAL PHASE */}
-        {phase === "reveal" && (
-          <RevealScreen
-            fighter1={{
-              name: myPlayer?.fighterName || "Your Fighter",
-              description: myPlayer?.fighterDescription || "",
-              maxHp: myPlayer?.maxHp || 100,
-              abilities: myPlayer?.abilities?.map((a) => a.label || a.abilityType) || [],
-              spriteData: spriteDataMap.get(mySessionId),
-            }}
-            fighter2={{
-              name: opponentPlayer?.fighterName || "Opponent",
-              description: opponentPlayer?.fighterDescription || "",
-              maxHp: opponentPlayer?.maxHp || 100,
-              abilities: opponentPlayer?.abilities?.map((a) => a.label || a.abilityType) || [],
-              spriteData: opponentPlayer?.id ? spriteDataMap.get(opponentPlayer.id) : undefined,
-            }}
-            timer={timer}
-          />
-        )}
-
-        {/* BATTLE PHASE (or result phase during death animation delay) */}
-        {(phase === "battle" || (phase === "result" && !showResultScreen)) && room && (
+        {/* REVEAL + BATTLE: shared wrapper so LiveCommentator stays mounted and connects during reveal */}
+        {(phase === "reveal" || phase === "battle" || (phase === "result" && !showResultScreen)) && (
+          <div className="flex-1 flex flex-col">
+            {phase === "reveal" && (
+              <RevealScreen
+                fighter1={{
+                  name: myPlayer?.fighterName || "Your Fighter",
+                  description: myPlayer?.fighterDescription || "",
+                  maxHp: myPlayer?.maxHp || 100,
+                  abilities: myPlayer?.abilities?.map((a) => a.label || a.abilityType) || [],
+                  spriteData: spriteDataMap.get(mySessionId),
+                }}
+                fighter2={{
+                  name: opponentPlayer?.fighterName || "Opponent",
+                  description: opponentPlayer?.fighterDescription || "",
+                  maxHp: opponentPlayer?.maxHp || 100,
+                  abilities: opponentPlayer?.abilities?.map((a) => a.label || a.abilityType) || [],
+                  spriteData: opponentPlayer?.id ? spriteDataMap.get(opponentPlayer.id) : undefined,
+                }}
+                timer={timer}
+              />
+            )}
+            {(phase === "battle" || (phase === "result" && !showResultScreen)) && room && (
           <div className="flex-1 flex flex-col gap-3 p-4">
-            {/* HP Bars */}
-            <div className="flex items-start justify-between gap-8 px-4">
+            {/* HP bars row */}
+            <div className="flex items-start justify-between gap-4 px-4 flex-wrap">
+              <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
               <HealthBar
                 hp={myPlayer?.hp || 0}
                 maxHp={myPlayer?.maxHp || 100}
@@ -587,6 +656,7 @@ export default function GameRoomPage() {
                 name={opponentPlayer?.fighterName || "Opponent"}
                 side="right"
               />
+              </div>
             </div>
 
             {/* Battle Arena + Gesture controls (tap/swipe on arena, draw below) */}
@@ -596,6 +666,8 @@ export default function GameRoomPage() {
               playerAbilities={myAbilities}
               spriteDataMap={spriteDataMap}
               gestureMoves={phase === "battle" ? (myFighterConfig?.gestureMoves ?? []) : []}
+              onCommentary={(!COMMENTATOR_HOST_ONLY || code === "new") ? (line) => commentatorRef.current?.speak(line) : undefined}
+              battleCountdownRemaining={battleCountdown}
             />
 
             {/* Legacy Ability HUD (hidden when using gesture moves) */}
@@ -612,6 +684,18 @@ export default function GameRoomPage() {
                   }
                   ink={myPlayer?.ink || 0}
                   maxInk={myPlayer?.maxInk || 100}
+                />
+              </div>
+            )}
+          </div>
+            )}
+            {(!COMMENTATOR_HOST_ONLY || code === "new") && (
+              <div className="flex justify-end px-4 pb-2 shrink-0">
+                <LiveCommentator
+                  ref={commentatorRef}
+                  avatarId={undefined}
+                  voiceId={undefined}
+                  className="shrink-0"
                 />
               </div>
             )}
