@@ -28,7 +28,10 @@ if (process.env.NODE_ENV !== "production") {
 const server = http.createServer(app);
 
 const gameServer = new Server({
-  transport: new WebSocketTransport({ server }),
+  transport: new WebSocketTransport({
+    server,
+    maxPayload: 2000000,
+  }),
 });
 
 // Register room types
