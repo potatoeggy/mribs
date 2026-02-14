@@ -6,13 +6,11 @@ import type { GestureMove } from "@shared/types";
 interface BattleGestureControlsProps {
   gestureMoves: GestureMove[];
   onGestureAttack: (moveId: string, drawingData?: string) => void;
-  cooldownProgress?: Record<string, number>;
 }
 
 export default function BattleGestureControls({
   gestureMoves,
   onGestureAttack,
-  cooldownProgress = {},
 }: BattleGestureControlsProps) {
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
   const [currentDrawStroke, setCurrentDrawStroke] = useState<{ x: number; y: number }[] | null>(null);
@@ -155,26 +153,16 @@ export default function BattleGestureControls({
   return (
     <div className="w-full max-w-[800px] flex flex-col gap-2">
         <div className="flex flex-wrap justify-center gap-3">
-          {gestureMoves.map((m) => {
-            const cd = cooldownProgress[m.id] ?? 0;
-            const onCooldown = cd > 0;
-            return (
-              <div
-                key={m.id}
-                className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 font-hand text-sm overflow-hidden ${onCooldown ? "border-gray-400 bg-gray-200" : "border-gray-600 bg-white/90"}`}
-              >
-                {onCooldown && (
-                  <div
-                    className="absolute inset-0 bg-gray-400/40 origin-left"
-                    style={{ transform: `scaleX(${cd})` }}
-                  />
-                )}
-                <span className={`relative font-bold capitalize ${onCooldown ? "text-gray-400" : "text-gray-500"}`}>{m.gesture}:</span>
-                <span className={`relative ${onCooldown ? "text-gray-400" : "text-gray-800"}`}>{m.action}</span>
-                <span className={`relative font-bold ${onCooldown ? "text-red-300" : "text-red-600"}`}>{m.power} dmg</span>
-              </div>
-            );
-          })}
+          {gestureMoves.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 border-gray-600 bg-white/90 font-hand text-sm"
+            >
+              <span className="font-bold text-gray-500 capitalize">{m.gesture}:</span>
+              <span className="text-gray-800">{m.action}</span>
+              <span className="text-red-600 font-bold">{m.power} dmg</span>
+            </div>
+          ))}
         </div>
         {drawMove && (
           <div className="flex flex-col gap-1">
