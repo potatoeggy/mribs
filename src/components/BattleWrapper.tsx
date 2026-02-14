@@ -118,28 +118,25 @@ export default function BattleWrapper({
         abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
       }>();
 
-      const playersMap = state.players as { forEach?: (cb: (p: Record<string, unknown>, id: string) => void) => void } | undefined;
-      if (playersMap && typeof playersMap.forEach === "function") {
-        playersMap.forEach((p: Record<string, unknown>, id: string) => {
-          players.set(id, {
-            x: p.x as number,
-            y: p.y as number,
-            hp: p.hp as number,
-            maxHp: p.maxHp as number,
-            ink: p.ink as number,
-            maxInk: p.maxInk as number,
-            facingRight: p.facingRight as boolean,
-            isShielding: p.isShielding as boolean,
-            fighterName: p.fighterName as string,
-            abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
-              abilityType: a.abilityType as string,
-              cooldownRemaining: a.cooldownRemaining as number,
-              cooldownMax: a.cooldownMax as number,
-              label: a.label as string,
-            })) || [],
-          });
+      (state.players as { forEach: (cb: (p: Record<string, unknown>, id: string) => void) => void }).forEach((p: Record<string, unknown>, id: string) => {
+        players.set(id, {
+          x: p.x as number,
+          y: p.y as number,
+          hp: p.hp as number,
+          maxHp: p.maxHp as number,
+          ink: p.ink as number,
+          maxInk: p.maxInk as number,
+          facingRight: p.facingRight as boolean,
+          isShielding: p.isShielding as boolean,
+          fighterName: p.fighterName as string,
+          abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
+            abilityType: a.abilityType as string,
+            cooldownRemaining: a.cooldownRemaining as number,
+            cooldownMax: a.cooldownMax as number,
+            label: a.label as string,
+          })) || [],
         });
-      }
+      });
 
       const projectiles = ((state.projectiles as Array<Record<string, unknown>>) || []).map((p: Record<string, unknown>) => ({
         id: p.id as string,

@@ -104,34 +104,31 @@ export default function GameRoomPage() {
           setDrawingTimeLimit(state.drawingTimeLimit as number);
 
           const newPlayers = new Map<string, PlayerData>();
-          const playersMap = state.players as { forEach?: (cb: (p: Record<string, unknown>, id: string) => void) => void } | undefined;
-          if (playersMap && typeof playersMap.forEach === "function") {
-            playersMap.forEach((p: Record<string, unknown>, id: string) => {
-              newPlayers.set(id, {
-                id: p.id as string,
-                name: p.name as string,
-                x: p.x as number,
-                y: p.y as number,
-                hp: p.hp as number,
-                maxHp: p.maxHp as number,
-                ink: p.ink as number,
-                maxInk: p.maxInk as number,
-                facingRight: p.facingRight as boolean,
-                isShielding: p.isShielding as boolean,
-                isReady: p.isReady as boolean,
-                drawingSubmitted: p.drawingSubmitted as boolean,
-                fighterName: p.fighterName as string,
-                fighterDescription: p.fighterDescription as string,
-                spriteData: p.spriteData as string,
-                abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
-                  abilityType: a.abilityType as string,
-                  cooldownRemaining: a.cooldownRemaining as number,
-                  cooldownMax: a.cooldownMax as number,
-                  label: a.label as string,
-                })) || [],
-              });
+          (state.players as { forEach: (cb: (p: Record<string, unknown>, id: string) => void) => void }).forEach((p: Record<string, unknown>, id: string) => {
+            newPlayers.set(id, {
+              id: p.id as string,
+              name: p.name as string,
+              x: p.x as number,
+              y: p.y as number,
+              hp: p.hp as number,
+              maxHp: p.maxHp as number,
+              ink: p.ink as number,
+              maxInk: p.maxInk as number,
+              facingRight: p.facingRight as boolean,
+              isShielding: p.isShielding as boolean,
+              isReady: p.isReady as boolean,
+              drawingSubmitted: p.drawingSubmitted as boolean,
+              fighterName: p.fighterName as string,
+              fighterDescription: p.fighterDescription as string,
+              spriteData: p.spriteData as string,
+              abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
+                abilityType: a.abilityType as string,
+                cooldownRemaining: a.cooldownRemaining as number,
+                cooldownMax: a.cooldownMax as number,
+                label: a.label as string,
+              })) || [],
             });
-          }
+          });
           setPlayers(newPlayers);
         });
 
