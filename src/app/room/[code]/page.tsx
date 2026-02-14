@@ -27,6 +27,11 @@ const BattleWrapper = dynamic(() => import("@/components/BattleWrapper"), {
   ),
 });
 
+// Live commentator (LiveAvatar) - client-only
+const LiveCommentator = dynamic(() => import("@/components/LiveCommentator"), {
+  ssr: false,
+});
+
 interface GestureMoveSummary {
   action: string;
   power: number;
@@ -78,6 +83,7 @@ export default function GameRoomPage() {
   const roomRef = useRef<Room | null>(null);
   const myDrawingDataRef = useRef<string>("");
   const previousPhaseRef = useRef<string>("");
+  const commentatorRef = useRef<{ speak: (text: string) => void } | null>(null);
   const resultPhaseStartRef = useRef<number>(0);
   const RESULT_DELAY_MS = 1700;
 
@@ -572,8 +578,15 @@ export default function GameRoomPage() {
         {/* BATTLE PHASE (or result phase during death animation delay) */}
         {(phase === "battle" || (phase === "result" && !showResultScreen)) && room && (
           <div className="flex-1 flex flex-col gap-3 p-4">
-            {/* HP Bars */}
-            <div className="flex items-start justify-between gap-8 px-4">
+            {/* Live commentator + HP bars row */}
+            <div className="flex items-start justify-between gap-4 px-4 flex-wrap">
+              <LiveCommentator
+                ref={commentatorRef}
+                avatarId={undefined}
+                voiceId={undefined}
+                className="shrink-0"
+              />
+              <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
               <HealthBar
                 hp={myPlayer?.hp || 0}
                 maxHp={myPlayer?.maxHp || 100}
@@ -587,6 +600,7 @@ export default function GameRoomPage() {
                 name={opponentPlayer?.fighterName || "Opponent"}
                 side="right"
               />
+              </div>
             </div>
 
             {/* Battle Arena + Gesture controls (tap/swipe on arena, draw below) */}
@@ -596,6 +610,7 @@ export default function GameRoomPage() {
               playerAbilities={myAbilities}
               spriteDataMap={spriteDataMap}
               gestureMoves={phase === "battle" ? (myFighterConfig?.gestureMoves ?? []) : []}
+              onCommentary={(line) => commentatorRef.current?.speak(line)}
             />
 
             {/* Legacy Ability HUD (hidden when using gesture moves) */}

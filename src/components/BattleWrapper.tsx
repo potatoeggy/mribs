@@ -9,12 +9,41 @@ const TAP_MAX_MS = 250;
 const TAP_MAX_DIST = 20;
 const SWIPE_MIN_DIST = 40;
 
+const COMMENTARY_LINES = {
+  attack: [
+    (a: string, t: string, action: string) => `Ohhh! ${a} just hit ${t} with a ${action}!`,
+    (a: string, t: string, action: string) => `And ${a} lands a ${action} on ${t}!`,
+    (a: string, t: string, action: string) => `Whoa, ${a} with the ${action}—${t} felt that one!`,
+  ],
+  damage: [
+    (name: string, amt: number) => `${name} takes ${amt} damage!`,
+    (name: string, amt: number) => `Ouch! ${amt} damage to ${name}!`,
+    (name: string, amt: number) => `There it is—${amt} damage on ${name}!`,
+  ],
+  death: [
+    (name: string) => `K.O! ${name} is down!`,
+    (name: string) => `And that's the fight! ${name} goes down!`,
+    (name: string) => `Game over for ${name}! What a finish!`,
+  ],
+  lowHp: [
+    (name: string) => `${name} is lookin' rough, they're gonna die soon!`,
+    (name: string) => `${name} is on their last legs here!`,
+    (name: string) => `Uh oh, ${name} is low—one more hit could do it!`,
+  ],
+};
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 interface BattleWrapperProps {
   room: Room;
   mySessionId: string;
   playerAbilities: string[];
   spriteDataMap: Map<string, string>;
   gestureMoves?: GestureMove[];
+  /** Callback to speak commentary lines (e.g. LiveCommentator) */
+  onCommentary?: (line: string) => void;
 }
 
 function parseRoomState(room: Room) {
@@ -68,13 +97,27 @@ export default function BattleWrapper({
   playerAbilities: _playerAbilities,
   spriteDataMap,
   gestureMoves = [],
+  onCommentary,
 }: BattleWrapperProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const arenaWrapperRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<import("phaser").Game | null>(null);
   const roomRef = useRef(room);
   const pointerRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const lastCommentaryRef = useRef(0);
+  const onCommentaryRef = useRef(onCommentary);
+  onCommentaryRef.current = onCommentary;
+  const COMMENTARY_COOLDOWN_MS = 2500;
   roomRef.current = room;
+
+  const maybeCommentary = useCallback((line: string) => {
+    const cb = onCommentaryRef.current;
+    if (!cb) return;
+    const now = Date.now();
+    if (now - lastCommentaryRef.current < COMMENTARY_COOLDOWN_MS) return;
+    lastCommentaryRef.current = now;
+    cb(line);
+  }, []);
 
   const getMoveByGesture = useCallback(
     (gesture: "tap" | "swipe" | "draw") => gestureMoves.find((m) => m.gesture === gesture),
@@ -162,6 +205,9 @@ export default function BattleWrapper({
 
         currentRoom.onMessage("battleEvents", (events: Array<Record<string, unknown>>) => {
           if (!scene) return;
+          const { players } = parseRoomState(currentRoom);
+          const getName = (id: string) => players.get(id)?.fighterName || "Fighter";
+
           for (const event of events) {
             if (event.type === "damage" || event.type === "meleeHit") {
               scene.showDamageNumber(
@@ -169,15 +215,35 @@ export default function BattleWrapper({
                 (event.y as number) || 300,
                 (event.amount as number) || 0
               );
+              const targetId = event.targetId as string | undefined;
+              const amount = (event.amount as number) || 0;
+              if (onCommentary && targetId && amount > 0) {
+                const name = getName(targetId);
+                maybeCommentary(pick(COMMENTARY_LINES.damage)(name, amount));
+              }
             }
             if (event.type === "death") {
               scene.showDeathAnimation(event.playerId as string);
+              if (onCommentary) {
+                const name = getName(event.playerId as string);
+                maybeCommentary(pick(COMMENTARY_LINES.death)(name));
+              }
             }
           }
         });
 
         currentRoom.onMessage("gestureAttackVisual", (data: Record<string, unknown>) => {
           if (!scene) return;
+          const { players } = parseRoomState(currentRoom);
+          const getName = (id: string) => players.get(id)?.fighterName || "Fighter";
+
+          if (onCommentary) {
+            const attacker = getName(data.playerId as string);
+            const target = getName(data.targetId as string);
+            const action = (data.action as string) || "attack";
+            maybeCommentary(pick(COMMENTARY_LINES.attack)(attacker, target, action));
+          }
+
           scene.playGestureAttackVisual({
             playerId: data.playerId as string,
             targetId: data.targetId as string,
