@@ -11,7 +11,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@heygen/liveavatar-web-sdk": "^0.0.10",
     "colyseus.js": "^0.16.22",
+    "livekit-client": "^2.17.1",
     "matter-js": "^0.20.0",
     "next": "16.1.6",
     "openai": "^6.22.0",
