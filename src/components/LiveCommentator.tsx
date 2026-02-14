@@ -23,18 +23,29 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
   function LiveCommentator({ avatarId, voiceId, onReady, onError, className = "" }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const sessionRef = useRef<LiveAvatarSession | null>(null);
-    const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "error">("idle");
+    const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "error" | "reconnecting">("idle");
     const [errorMessage, setErrorMessage] = useState<string>("");
 
-    const speak = useCallback((text: string) => {
+    const isReadyRef = useRef(false);
+    const pendingLineRef = useRef<string | null>(null);
+
+    const doSpeak = useCallback((text: string) => {
       const session = sessionRef.current;
-      if (!session || status !== "ready") return;
+      if (!session || !isReadyRef.current) {
+        pendingLineRef.current = text;
+        return;
+      }
+      pendingLineRef.current = null;
       try {
         session.message(text);
       } catch (err) {
         console.warn("Commentator speak error:", err);
       }
-    }, [status]);
+    }, []);
+
+    const speak = useCallback((text: string) => {
+      doSpeak(text);
+    }, [doSpeak]);
 
     useImperativeHandle(ref, () => ({ speak }), [speak]);
 
@@ -74,12 +85,25 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
             if (videoRef.current) {
               session!.attach(videoRef.current);
             }
+            isReadyRef.current = true;
             setStatus("ready");
             onReady?.();
+            const pending = pendingLineRef.current;
+            if (pending) {
+              pendingLineRef.current = null;
+              try {
+                session!.message(pending);
+              } catch (err) {
+                console.warn("Commentator speak pending error:", err);
+              }
+            }
           });
 
           session.on(SessionEvent.SESSION_DISCONNECTED, () => {
-            if (mounted) setStatus("idle");
+            if (!mounted) return;
+            isReadyRef.current = false;
+            sessionRef.current = null;
+            setStatus("reconnecting");
           });
 
           await session.start();
@@ -103,9 +127,75 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
           session.stop().catch(() => {});
           sessionRef.current = null;
         }
+        isReadyRef.current = false;
         setStatus("idle");
       };
     }, [avatarId, voiceId, onReady, onError]);
+
+    // Auto-reconnect when session ends (e.g. sandbox 1-min limit) or when tab becomes visible
+    const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+      if (status !== "reconnecting") return;
+
+      const tryReconnect = async () => {
+        setStatus("connecting");
+        setErrorMessage("");
+        try {
+          const body: Record<string, string> = {};
+          if (avatarId) body.avatar_id = avatarId;
+          if (voiceId) body.voice_id = voiceId;
+          const res = await fetch("/api/liveavatar/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error ?? "Reconnect failed");
+          const token = data.session_token;
+          if (!token) throw new Error("No token");
+          const s = new LiveAvatarSession(token, { voiceChat: false });
+          sessionRef.current = s;
+          s.on(SessionEvent.SESSION_STREAM_READY, () => {
+            if (videoRef.current) s.attach(videoRef.current);
+            isReadyRef.current = true;
+            setStatus("ready");
+            const pending = pendingLineRef.current;
+            if (pending) {
+              pendingLineRef.current = null;
+              try {
+                s.message(pending);
+              } catch {
+                /* ignore */
+              }
+            }
+          });
+          s.on(SessionEvent.SESSION_DISCONNECTED, () => {
+            isReadyRef.current = false;
+            sessionRef.current = null;
+            setStatus("reconnecting");
+          });
+          await s.start();
+        } catch (err) {
+          setStatus("error");
+          setErrorMessage(err instanceof Error ? err.message : "Reconnect failed");
+        }
+      };
+
+      reconnectTimeoutRef.current = setTimeout(tryReconnect, 2000);
+
+      const onVisible = () => {
+        if (document.visibilityState === "visible" && status === "reconnecting") {
+          if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+          tryReconnect();
+        }
+      };
+      document.addEventListener("visibilitychange", onVisible);
+
+      return () => {
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+        document.removeEventListener("visibilitychange", onVisible);
+      };
+    }, [status, avatarId, voiceId]);
 
     return (
       <div
@@ -119,10 +209,12 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
             muted={false}
             className="h-full w-full object-cover"
           />
-          {status === "connecting" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80">
+          {(status === "connecting" || status === "reconnecting") && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              <span className="ml-2 text-sm text-white">Connecting commentator...</span>
+              <span className="mt-2 text-sm text-white">
+                {status === "reconnecting" ? "Session ended, reconnecting..." : "Connecting commentator..."}
+              </span>
             </div>
           )}
           {status === "error" && (
@@ -133,7 +225,11 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
           )}
         </div>
         <p className="font-hand text-sm font-bold text-gray-600">
-          {status === "ready" ? "🗣️ Live commentator" : status === "connecting" ? "..." : "Commentator offline"}
+          {status === "ready"
+            ? "🗣️ Live commentator"
+            : status === "connecting" || status === "reconnecting"
+              ? "Reconnecting..."
+              : "Commentator offline"}
         </p>
       </div>
     );

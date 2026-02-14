@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState } from "react";
 import type { Room } from "colyseus.js";
 import type { GestureMove } from "@shared/types";
 import BattleGestureControls from "./BattleGestureControls";
@@ -44,6 +44,8 @@ interface BattleWrapperProps {
   gestureMoves?: GestureMove[];
   /** Callback to speak commentary lines (e.g. LiveCommentator) */
   onCommentary?: (line: string) => void;
+  /** Seconds remaining until attacks enabled (Ready... START countdown) */
+  battleCountdownRemaining?: number;
 }
 
 function parseRoomState(room: Room) {
@@ -98,7 +100,9 @@ export default function BattleWrapper({
   spriteDataMap,
   gestureMoves = [],
   onCommentary,
+  battleCountdownRemaining = 0,
 }: BattleWrapperProps) {
+  const battleReady = battleCountdownRemaining <= 0;
   const containerRef = useRef<HTMLDivElement>(null);
   const arenaWrapperRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<import("phaser").Game | null>(null);
@@ -107,17 +111,54 @@ export default function BattleWrapper({
   const lastCommentaryRef = useRef(0);
   const onCommentaryRef = useRef(onCommentary);
   onCommentaryRef.current = onCommentary;
-  const COMMENTARY_COOLDOWN_MS = 2500;
+  const COMMENTARY_COOLDOWN_MS = 900;
+  /** Set false for instant commentary (preset only); true for AI-generated variety (adds ~300-600ms). */
+  const USE_AI_COMMENTARY = false;
   roomRef.current = room;
 
-  const maybeCommentary = useCallback((line: string) => {
+  const maybeCommentary = useCallback(async (context: {
+    eventType: "attack" | "damage" | "death";
+    attackerName?: string;
+    targetName?: string;
+    action?: string;
+    amount?: number;
+  }, presetLine: string) => {
     const cb = onCommentaryRef.current;
     if (!cb) return;
     const now = Date.now();
     if (now - lastCommentaryRef.current < COMMENTARY_COOLDOWN_MS) return;
     lastCommentaryRef.current = now;
+
+    let line = presetLine;
+    if (USE_AI_COMMENTARY) {
+      try {
+        const res = await Promise.race([
+          fetch("/api/commentary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(context),
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 300)
+          ),
+        ]);
+        if (res.ok) {
+          const data = await (res as Response).json();
+          if (data?.line) line = data.line;
+        }
+      } catch {
+        /* use preset */
+      }
+    }
     cb(line);
   }, []);
+
+  const ATTACK_COOLDOWN_MS = 2000;
+  const [attackCooldownUntil, setAttackCooldownUntil] = useState(0);
+  const attackCooldownUntilRef = useRef(0);
+  attackCooldownUntilRef.current = attackCooldownUntil;
+
+  const isOnAttackCooldown = useCallback(() => Date.now() < attackCooldownUntilRef.current, []);
 
   const getMoveByGesture = useCallback(
     (gesture: "tap" | "swipe" | "draw") => gestureMoves.find((m) => m.gesture === gesture),
@@ -126,14 +167,20 @@ export default function BattleWrapper({
 
   const onGestureAttack = useCallback(
     (moveId: string, drawingData?: string) => {
+      if (!battleReady) return;
+      const now = Date.now();
+      if (now < attackCooldownUntilRef.current) return;
+      const until = now + ATTACK_COOLDOWN_MS;
+      attackCooldownUntilRef.current = until;
+      setAttackCooldownUntil(until);
       room.send("gestureAttack", { moveId, drawingData });
     },
-    [room]
+    [room, attackCooldownUntil, battleReady]
   );
 
   const handleOverlayPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!gestureMoves.length) return;
+      if (!gestureMoves.length || !battleReady || isOnAttackCooldown()) return;
       const rect = arenaWrapperRef.current?.getBoundingClientRect();
       if (!rect) return;
       pointerRef.current = {
@@ -142,12 +189,12 @@ export default function BattleWrapper({
         t: Date.now(),
       };
     },
-    [gestureMoves.length]
+    [gestureMoves.length, battleReady]
   );
 
   const handleOverlayPointerUp = useCallback(
     (e: React.PointerEvent) => {
-      if (!pointerRef.current || !gestureMoves.length) return;
+      if (!pointerRef.current || !gestureMoves.length || !battleReady || isOnAttackCooldown()) return;
       const rect = arenaWrapperRef.current?.getBoundingClientRect();
       if (!rect) return;
       const x = e.clientX - rect.left;
@@ -166,7 +213,7 @@ export default function BattleWrapper({
         if (move) onGestureAttack(move.id);
       }
     },
-    [gestureMoves.length, getMoveByGesture, onGestureAttack]
+    [gestureMoves.length, getMoveByGesture, onGestureAttack, isOnAttackCooldown, battleReady]
   );
 
   useEffect(() => {
@@ -217,16 +264,22 @@ export default function BattleWrapper({
               );
               const targetId = event.targetId as string | undefined;
               const amount = (event.amount as number) || 0;
-              if (onCommentary && targetId && amount > 0) {
+              if (onCommentaryRef.current && targetId && amount > 0) {
                 const name = getName(targetId);
-                maybeCommentary(pick(COMMENTARY_LINES.damage)(name, amount));
+                maybeCommentary(
+                  { eventType: "damage", targetName: name, amount },
+                  pick(COMMENTARY_LINES.damage)(name, amount)
+                );
               }
             }
             if (event.type === "death") {
               scene.showDeathAnimation(event.playerId as string);
-              if (onCommentary) {
+              if (onCommentaryRef.current) {
                 const name = getName(event.playerId as string);
-                maybeCommentary(pick(COMMENTARY_LINES.death)(name));
+                maybeCommentary(
+                  { eventType: "death", targetName: name },
+                  pick(COMMENTARY_LINES.death)(name)
+                );
               }
             }
           }
@@ -237,11 +290,14 @@ export default function BattleWrapper({
           const { players } = parseRoomState(currentRoom);
           const getName = (id: string) => players.get(id)?.fighterName || "Fighter";
 
-          if (onCommentary) {
+          if (onCommentaryRef.current) {
             const attacker = getName(data.playerId as string);
             const target = getName(data.targetId as string);
             const action = (data.action as string) || "attack";
-            maybeCommentary(pick(COMMENTARY_LINES.attack)(attacker, target, action));
+            maybeCommentary(
+              { eventType: "attack", attackerName: attacker, targetName: target, action },
+              pick(COMMENTARY_LINES.attack)(attacker, target, action)
+            );
           }
 
           scene.playGestureAttackVisual({
@@ -267,6 +323,22 @@ export default function BattleWrapper({
     };
   }, [spriteDataMap]);
 
+  // Update cooldown display every 100ms while on cooldown
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  useEffect(() => {
+    if (attackCooldownUntil <= 0) {
+      setCooldownRemaining(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, (attackCooldownUntil - Date.now()) / 1000);
+      setCooldownRemaining(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 100);
+    return () => clearInterval(id);
+  }, [attackCooldownUntil]);
+
   return (
     <div className="flex flex-col items-center gap-2 w-full">
       <div
@@ -275,17 +347,44 @@ export default function BattleWrapper({
       >
         <div ref={containerRef} className="absolute inset-0" />
         {gestureMoves.length > 0 && (
-          <div
-            className="absolute inset-0 touch-none cursor-crosshair"
-            onPointerDown={handleOverlayPointerDown}
-            onPointerUp={handleOverlayPointerUp}
-            onPointerLeave={() => { pointerRef.current = null; }}
-            onPointerCancel={() => { pointerRef.current = null; }}
-          />
+          <>
+            {battleCountdownRemaining > 0 && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none z-10">
+                <div className="font-hand text-5xl font-bold text-white drop-shadow-lg text-center animate-pulse">
+                  {battleCountdownRemaining > 5
+                    ? "Ready..."
+                    : battleCountdownRemaining > 4
+                      ? "3"
+                      : battleCountdownRemaining > 3
+                        ? "2"
+                        : battleCountdownRemaining > 2
+                          ? "1"
+                          : "START!!!"}
+                </div>
+              </div>
+            )}
+            <div
+              className={`absolute inset-0 z-20 touch-none ${battleReady ? "cursor-crosshair" : "cursor-not-allowed"}`}
+              onPointerDown={handleOverlayPointerDown}
+              onPointerUp={handleOverlayPointerUp}
+              onPointerLeave={() => { pointerRef.current = null; }}
+              onPointerCancel={() => { pointerRef.current = null; }}
+            />
+            {cooldownRemaining > 0 && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-black/70 text-white font-hand text-sm font-bold pointer-events-none">
+                Attack in {cooldownRemaining.toFixed(1)}s
+              </div>
+            )}
+          </>
         )}
       </div>
       {gestureMoves.length > 0 && (
-        <BattleGestureControls gestureMoves={gestureMoves} onGestureAttack={onGestureAttack} />
+        <BattleGestureControls
+          gestureMoves={gestureMoves}
+          onGestureAttack={onGestureAttack}
+          attackCooldownRemaining={battleReady ? cooldownRemaining : battleCountdownRemaining}
+          attackDisabled={!battleReady}
+        />
       )}
     </div>
   );

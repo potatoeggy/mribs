@@ -48,8 +48,8 @@ export class GameRoom extends Room<GameStateSchema> {
   private playerConfigs: Map<string, FighterConfig> = new Map();
   private playerDrawings: Map<string, string> = new Map(); // sessionId -> base64 PNG
   private playerGestureMoves: Map<string, GestureMove[]> = new Map();
-  private gestureCooldowns: Map<string, number> = new Map(); // "sessionId:moveId" -> time until ready
-  private readonly GESTURE_COOLDOWN_SEC = 1.2;
+  private gestureCooldowns: Map<string, number> = new Map(); // "sessionId" -> time until ready (global cooldown)
+  private readonly GESTURE_COOLDOWN_SEC = 2;
 
   maxClients = 2;
 
@@ -231,7 +231,7 @@ export class GameRoom extends Room<GameStateSchema> {
     const move = moves.find((m) => m.id === data.moveId);
     if (!move) return;
 
-    const key = `${client.sessionId}:${move.id}`;
+    const key = client.sessionId;
     const now = Date.now() / 1000;
     const readyAt = this.gestureCooldowns.get(key) ?? 0;
     if (now < readyAt) return;

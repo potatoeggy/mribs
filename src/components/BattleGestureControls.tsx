@@ -6,12 +6,17 @@ import type { GestureMove } from "@shared/types";
 interface BattleGestureControlsProps {
   gestureMoves: GestureMove[];
   onGestureAttack: (moveId: string, drawingData?: string) => void;
+  attackCooldownRemaining?: number;
+  attackDisabled?: boolean;
 }
 
 export default function BattleGestureControls({
   gestureMoves,
   onGestureAttack,
+  attackCooldownRemaining = 0,
+  attackDisabled = false,
 }: BattleGestureControlsProps) {
+  const isOnCooldown = attackCooldownRemaining > 0 || attackDisabled;
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
   const [currentDrawStroke, setCurrentDrawStroke] = useState<{ x: number; y: number }[] | null>(null);
   const [drawSentFeedback, setDrawSentFeedback] = useState(false);
@@ -38,12 +43,12 @@ export default function BattleGestureControls({
 
   const startDraw = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
-      if (!getMoveByGesture("draw")) return;
+      if (!getMoveByGesture("draw") || isOnCooldown) return;
       e.preventDefault();
       const point = getDrawPoint(e);
       setCurrentDrawStroke([point]);
     },
-    [getMoveByGesture, getDrawPoint]
+    [getMoveByGesture, getDrawPoint, isOnCooldown]
   );
 
   const moveDraw = useCallback(
@@ -57,7 +62,7 @@ export default function BattleGestureControls({
   );
 
   const endDraw = useCallback(() => {
-    if (currentDrawStroke && currentDrawStroke.length >= 2) {
+    if ((currentDrawStroke && currentDrawStroke.length >= 2) && !isOnCooldown) {
       const move = getMoveByGesture("draw");
       if (move) {
         const canvas = drawCanvasRef.current;
@@ -124,7 +129,7 @@ export default function BattleGestureControls({
         }
       }
     });
-  }, [currentDrawStroke, getMoveByGesture, onGestureAttack]);
+  }, [currentDrawStroke, getMoveByGesture, onGestureAttack, isOnCooldown]);
 
   // Draw current stroke on canvas for feedback (opaque background so export is visible)
   useEffect(() => {
@@ -165,9 +170,13 @@ export default function BattleGestureControls({
           ))}
         </div>
         {drawMove && (
-          <div className="flex flex-col gap-1">
+          <div className={`flex flex-col gap-1 ${isOnCooldown ? "opacity-60 pointer-events-none" : ""}`}>
             <p className="font-hand text-xs text-gray-500 text-center">
-              Draw here to use &quot;{drawMove.action}&quot;
+              {isOnCooldown
+                ? attackDisabled
+                  ? "Get ready..."
+                  : `Attack in ${attackCooldownRemaining.toFixed(1)}s`
+                : `Draw here to use "${drawMove.action}"`}
             </p>
             {drawSentFeedback && (
               <p className="font-hand text-sm font-bold text-green-600 text-center animate-pulse">
