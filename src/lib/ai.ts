@@ -38,12 +38,22 @@ SPRITE BOUNDS:
 - Identify the bounding box of the MAIN creature body (not annotations or separate attack drawings)
 - Return as { x, y, width, height } in pixel coordinates (canvas is typically ~800x500)
 
+DRAWING EFFORT & STRENGTH (use this to scale attack power):
+- Assess how much EFFORT/detail the drawing shows: low effort = very simple (stick figure, few lines, minimal detail), medium = recognizable with some features, high effort = detailed (shading, texture, multiple elements, clear expression).
+- Assess how STRONG/IMPOSING the creature looks: size, muscles, weapons, armor, fierce expression, multiple limbs, etc. vs small, cute, or fragile-looking.
+- Scale gesture move power (5-25) from this:
+  - Low effort + weak-looking: power 5-10 (reward stays low; encourage trying again with more detail).
+  - High effort + strong-looking: power 16-25 (reward good, detailed, imposing drawings).
+  - Medium effort or mixed: power 10-18.
+- Be consistent: if the drawing is clearly a quick scribble or single blob, give weaker attacks. If it's detailed and the creature looks powerful, give stronger attacks. This makes the game fair and rewarding.
+
 GESTURE MOVES (required):
 - Return exactly 2 or 3 "gestureMoves" for battle. Each move is performed by the player doing a gesture: "tap" (quick tap), "swipe" (swipe on screen), or "draw" (draw something on battle canvas).
 - Each move: { "id": "unique-id", "gesture": "tap"|"swipe"|"draw", "action": "short description", "power": 5-25 }
-- Gesture moves must be OFFENSIVE attacks that deal damage. Do NOT suggest defensive actions like shield, block, or protect. Only suggest attacks that fit the creature: e.g. Pounce, Scratch, Bite, Slash, Drop on them, Slam, Chomp, Sting, etc.
-- Use at least one of each gesture type if you have 3 moves; for 2 moves use tap and swipe. Power should be balanced (e.g. tap=5-10, swipe=10-18, draw=12-25).
-- "action" is the ATTACK NAME only: short, punchy, creative (e.g. Whisker Whack, Ink Splatter, Shadow Bite, Poop Bomb). No gesture labels—do not include "tap", "swipe", or "draw" in the action name.
+- Set each move's "power" using the DRAWING EFFORT & STRENGTH rules above. Do NOT give everyone the same power range—vary by drawing quality.
+- Gesture moves must be OFFENSIVE attacks that deal damage. Do NOT suggest defensive actions like shield, block, or protect. Only suggest attacks that fit the creature.
+- Use at least one of each gesture type if you have 3 moves; for 2 moves use tap and swipe. Within the chosen power range, tap can be slightly lower, draw slightly higher.
+- "action" is the ATTACK NAME only: short, punchy, creative (e.g. Whisker Whack, Ink Splatter, Shadow Bite). No gesture labels—do not include "tap", "swipe", or "draw" in the action name.
 
 You MUST respond with a valid JSON object matching the FighterConfig schema. Be creative with names and descriptions!`;
 
@@ -154,7 +164,7 @@ export async function analyzeDrawing(imageBase64: string): Promise<FighterConfig
         content: [
           {
             type: "text",
-            text: "Analyze this hand-drawn creature for Scribble Fighters. Determine its abilities, stats, sprite bounds, and 2-3 gestureMoves (tap, swipe, draw). Return a JSON FighterConfig with gestureMoves.",
+            text: "Analyze this hand-drawn creature for Scribble Fighters. Judge drawing effort/detail and how strong the creature looks, then set gestureMoves power (5-25) accordingly: low-effort or weak-looking = weaker attacks, detailed and imposing = stronger attacks. Return a JSON FighterConfig with abilities, sprite bounds, and gestureMoves.",
           },
           {
             type: "image_url",

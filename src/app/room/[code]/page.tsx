@@ -79,7 +79,7 @@ export default function GameRoomPage() {
   const myDrawingDataRef = useRef<string>("");
   const previousPhaseRef = useRef<string>("");
   const resultPhaseStartRef = useRef<number>(0);
-  const RESULT_DELAY_MS = 2000;
+  const RESULT_DELAY_MS = 1700;
 
   // Connect to room
   useEffect(() => {
