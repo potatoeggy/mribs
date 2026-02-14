@@ -59,6 +59,16 @@ export interface AbilityConfig {
   params: MovementParams | FlyingParams | ProjectileParams | MeleeParams | ShieldParams | DashParams;
 }
 
+// --- Gesture-based battle moves (from AI interpretation of drawing) ---
+export type BattleGestureType = "tap" | "swipe" | "draw";
+
+export interface GestureMove {
+  id: string;
+  gesture: BattleGestureType;
+  action: string; // e.g. "Scratch the other player"
+  power: number; // damage 5-25
+}
+
 // --- AI Analysis Result ---
 export interface FighterConfig {
   name: string;
@@ -68,6 +78,8 @@ export interface FighterConfig {
   abilities: AbilityConfig[];
   spriteBounds: { x: number; y: number; width: number; height: number };
   balanceScore: number; // 1-10
+  /** 2-3 gesture moves for battle (tap, swipe, draw) */
+  gestureMoves?: GestureMove[];
 }
 
 // --- Battle State (synced via Colyseus) ---

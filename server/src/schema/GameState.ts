@@ -37,6 +37,7 @@ export class PlayerSchema extends Schema {
   @type("string") fighterName: string = "";
   @type("string") fighterDescription: string = "";
   @type("string") spriteData: string = ""; // base64 PNG
+  @type("string") gestureMoveSummary: string = ""; // JSON array of { action, power } for analyzing UI
   @type([AbilitySchema]) abilities = new ArraySchema<AbilitySchema>();
 }
 

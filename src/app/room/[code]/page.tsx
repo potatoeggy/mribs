@@ -27,6 +27,11 @@ const BattleWrapper = dynamic(() => import("@/components/BattleWrapper"), {
   ),
 });
 
+interface GestureMoveSummary {
+  action: string;
+  power: number;
+}
+
 interface PlayerData {
   id: string;
   name: string;
@@ -43,6 +48,7 @@ interface PlayerData {
   fighterName: string;
   fighterDescription: string;
   spriteData: string;
+  gestureMoveSummary: string;
   abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
 }
 
@@ -67,9 +73,13 @@ export default function GameRoomPage() {
   const [myFighterConfig, setMyFighterConfig] = useState<FighterConfig | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [opponentStrokes, setOpponentStrokes] = useState<Stroke[]>([]);
+  const [showResultScreen, setShowResultScreen] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
   const myDrawingDataRef = useRef<string>("");
+  const previousPhaseRef = useRef<string>("");
+  const resultPhaseStartRef = useRef<number>(0);
+  const RESULT_DELAY_MS = 1700;
 
   // Connect to room
   useEffect(() => {
@@ -100,10 +110,21 @@ export default function GameRoomPage() {
         // Listen for state changes
         r.onStateChange((state: Record<string, unknown>) => {
           if (!mounted) return;
-          setPhase(state.phase as string);
+          const newPhase = state.phase as string;
+          const prevPhase = previousPhaseRef.current;
+          previousPhaseRef.current = newPhase;
+          setPhase(newPhase);
           setTimer(Math.ceil(state.timer as number));
           setRoomCode(state.roomCode as string);
           setWinnerId(state.winnerId as string);
+          if (newPhase === "result") {
+            if (prevPhase !== "result") {
+              setShowResultScreen(false);
+              resultPhaseStartRef.current = Date.now();
+            }
+          } else {
+            setShowResultScreen(false);
+          }
           setInkBudget(state.inkBudget as number);
           setDrawingTimeLimit(state.drawingTimeLimit as number);
 
@@ -125,6 +146,7 @@ export default function GameRoomPage() {
               fighterName: p.fighterName as string,
               fighterDescription: p.fighterDescription as string,
               spriteData: p.spriteData as string,
+              gestureMoveSummary: (p.gestureMoveSummary as string) || "",
               abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
                 abilityType: a.abilityType as string,
                 cooldownRemaining: a.cooldownRemaining as number,
@@ -186,6 +208,19 @@ export default function GameRoomPage() {
       }
     };
   }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // After K.O., wait RESULT_DELAY_MS before showing the result screen (interval-based so it’s reliable)
+  useEffect(() => {
+    if (phase !== "result" || showResultScreen) return;
+    const start = resultPhaseStartRef.current || Date.now();
+    resultPhaseStartRef.current = start;
+    const id = setInterval(() => {
+      if (Date.now() - start >= RESULT_DELAY_MS) {
+        setShowResultScreen(true);
+      }
+    }, 150);
+    return () => clearInterval(id);
+  }, [phase, showResultScreen]);
 
   // Analyze drawing with AI
   const analyzeDrawing = useCallback(
@@ -461,27 +496,52 @@ export default function GameRoomPage() {
                   <p className="text-lg text-gray-500">Battle starts in {timer}s</p>
                 )}
                 <div className="flex gap-8 w-full justify-center">
-                  {Array.from(players.values()).map((p) => (
-                    <div key={p.id} className="flex-1 flex flex-col items-center gap-3 border border-gray-300 rounded-lg p-5 bg-white max-w-xs">
-                      {spriteDataMap.get(p.id) ? (
-                        <img
-                          src={spriteDataMap.get(p.id)}
-                          alt={p.fighterName || p.name}
-                          className="w-28 h-28 object-contain border border-gray-200 rounded-lg bg-gray-50 p-2"
-                        />
-                      ) : (
-                        <div className="w-28 h-28 flex items-center justify-center border border-gray-200 rounded-lg bg-gray-50 text-gray-400 text-sm">
-                          analyzing...
+                  {Array.from(players.values()).map((p) => {
+                    const isMe = p.id === mySessionId;
+                    let moves: GestureMoveSummary[] = [];
+                    try {
+                      if (p.gestureMoveSummary) moves = JSON.parse(p.gestureMoveSummary) as GestureMoveSummary[];
+                    } catch {
+                      if (isMe && myFighterConfig?.gestureMoves?.length) {
+                        moves = myFighterConfig.gestureMoves.map((m) => ({ action: m.action, power: m.power }));
+                      }
+                    }
+                    if (isMe && myFighterConfig?.gestureMoves?.length && moves.length === 0) {
+                      moves = myFighterConfig.gestureMoves.map((m) => ({ action: m.action, power: m.power }));
+                    }
+                    return (
+                      <div key={p.id} className="flex-1 flex flex-col items-center gap-3 border border-gray-300 rounded-lg p-5 bg-white max-w-xs">
+                        {spriteDataMap.get(p.id) ? (
+                          <img
+                            src={spriteDataMap.get(p.id)}
+                            alt={p.fighterName || p.name}
+                            className="w-28 h-28 object-contain border border-gray-200 rounded-lg bg-gray-50 p-2"
+                          />
+                        ) : (
+                          <div className="w-28 h-28 flex items-center justify-center border border-gray-200 rounded-lg bg-gray-50 text-gray-400 text-sm">
+                            analyzing...
+                          </div>
+                        )}
+                        <p className="font-bold text-xl text-gray-800">{p.fighterName || p.name}</p>
+                        <p className="text-gray-600 text-sm text-center">{p.fighterDescription || "Waiting for analysis..."}</p>
+                        <div className="w-full text-xs text-gray-500 space-y-0.5">
+                          <p>HP: {p.maxHp}</p>
+                          {moves.length > 0 && (
+                            <>
+                              <p className="font-semibold text-gray-600">Attacks</p>
+                              <ul className="list-none space-y-0.5">
+                                {moves.map((m, i) => (
+                                  <li key={i}>
+                                    {isMe ? `${m.action} (${m.power} dmg)` : m.action}
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
                         </div>
-                      )}
-                      <p className="font-bold text-xl text-gray-800">{p.fighterName || p.name}</p>
-                      <p className="text-gray-600 text-sm text-center">{p.fighterDescription || "Waiting for analysis..."}</p>
-                      <div className="w-full text-xs text-gray-500 space-y-0.5">
-                        <p>HP: {p.maxHp}</p>
-                        <p>Abilities: {p.abilities?.map((a) => a.label || a.abilityType).join(", ") || "..."}</p>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -509,8 +569,8 @@ export default function GameRoomPage() {
           />
         )}
 
-        {/* BATTLE PHASE */}
-        {phase === "battle" && room && (
+        {/* BATTLE PHASE (or result phase during death animation delay) */}
+        {(phase === "battle" || (phase === "result" && !showResultScreen)) && room && (
           <div className="flex-1 flex flex-col gap-3 p-4">
             {/* HP Bars */}
             <div className="flex items-start justify-between gap-8 px-4">
@@ -529,34 +589,37 @@ export default function GameRoomPage() {
               />
             </div>
 
-            {/* Battle Arena */}
+            {/* Battle Arena + Gesture controls (tap/swipe on arena, draw below) */}
             <BattleWrapper
               room={room}
               mySessionId={mySessionId}
               playerAbilities={myAbilities}
               spriteDataMap={spriteDataMap}
+              gestureMoves={phase === "battle" ? (myFighterConfig?.gestureMoves ?? []) : []}
             />
 
-            {/* Ability HUD */}
-            <div className="flex justify-center">
-              <AbilityHUD
-                abilities={
-                  myPlayer?.abilities?.map((a) => ({
-                    type: a.abilityType,
-                    label: a.label || a.abilityType,
-                    cooldownRemaining: a.cooldownRemaining,
-                    cooldownMax: a.cooldownMax,
-                  })) || []
-                }
-                ink={myPlayer?.ink || 0}
-                maxInk={myPlayer?.maxInk || 100}
-              />
-            </div>
+            {/* Legacy Ability HUD (hidden when using gesture moves) */}
+            {phase === "battle" && (!myFighterConfig?.gestureMoves?.length) && (
+              <div className="flex justify-center">
+                <AbilityHUD
+                  abilities={
+                    myPlayer?.abilities?.map((a) => ({
+                      type: a.abilityType,
+                      label: a.label || a.abilityType,
+                      cooldownRemaining: a.cooldownRemaining,
+                      cooldownMax: a.cooldownMax,
+                    })) || []
+                  }
+                  ink={myPlayer?.ink || 0}
+                  maxInk={myPlayer?.maxInk || 100}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {/* RESULT PHASE */}
-        {phase === "result" && (
+        {/* RESULT PHASE (after death animation delay) */}
+        {phase === "result" && showResultScreen && (
           <ResultScreen
             winnerId={winnerId}
             mySessionId={mySessionId}

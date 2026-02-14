@@ -14,6 +14,13 @@ import {
   GROUND_Y,
 } from "../game/BalanceConfig";
 
+interface GestureMove {
+  id: string;
+  gesture: string;
+  action: string;
+  power: number;
+}
+
 interface FighterConfig {
   name: string;
   description: string;
@@ -22,6 +29,7 @@ interface FighterConfig {
   abilities: { type: string; params: Record<string, number | string> }[];
   spriteBounds: { x: number; y: number; width: number; height: number };
   balanceScore: number;
+  gestureMoves?: GestureMove[];
 }
 
 function generateRoomCode(): string {
@@ -39,6 +47,9 @@ export class GameRoom extends Room<GameStateSchema> {
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private playerConfigs: Map<string, FighterConfig> = new Map();
   private playerDrawings: Map<string, string> = new Map(); // sessionId -> base64 PNG
+  private playerGestureMoves: Map<string, GestureMove[]> = new Map();
+  private gestureCooldowns: Map<string, number> = new Map(); // "sessionId:moveId" -> time until ready
+  private readonly GESTURE_COOLDOWN_SEC = 1.2;
 
   maxClients = 2;
 
@@ -62,6 +73,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.onMessage("fighterConfig", (client, data) => this.handleFighterConfig(client, data));
     this.onMessage("move", (client, data) => this.handleMove(client, data));
     this.onMessage("ability", (client, data) => this.handleAbility(client, data));
+    this.onMessage("gestureAttack", (client, data) => this.handleGestureAttack(client, data));
     this.onMessage("playAgain", () => this.resetToLobby());
     this.onMessage("strokeUpdate", (client, data) => this.relayToOpponent(client, "opponentStroke", data));
     this.onMessage("strokeUndo", (client) => this.relayToOpponent(client, "opponentStrokeUndo", {}));
@@ -152,12 +164,31 @@ export class GameRoom extends Room<GameStateSchema> {
     if (this.state.phase !== "analyzing") return;
     this.playerConfigs.set(client.sessionId, config);
 
+    if (config.gestureMoves && Array.isArray(config.gestureMoves) && config.gestureMoves.length >= 2) {
+      this.playerGestureMoves.set(
+        client.sessionId,
+        config.gestureMoves.slice(0, 3).map((m) => ({
+          id: m.id,
+          gesture: m.gesture,
+          action: m.action,
+          power: Math.max(5, Math.min(25, m.power)),
+        }))
+      );
+    } else {
+      this.playerGestureMoves.set(client.sessionId, [
+        { id: "tap-1", gesture: "tap", action: "Pounce", power: 8 },
+        { id: "swipe-1", gesture: "swipe", action: "Scratch", power: 14 },
+      ]);
+    }
+
     const player = this.state.players.get(client.sessionId);
     if (player) {
       player.fighterName = config.name;
       player.fighterDescription = config.description;
       player.maxHp = config.health.maxHp;
       player.hp = config.health.maxHp;
+      const moves = this.playerGestureMoves.get(client.sessionId) ?? [];
+      player.gestureMoveSummary = JSON.stringify(moves.map((m) => ({ action: m.action, power: m.power })));
 
       // Populate abilities
       player.abilities.clear();
@@ -193,32 +224,32 @@ export class GameRoom extends Room<GameStateSchema> {
     this.battleSim.handleAbility(client.sessionId, data.abilityType, data.targetX, data.targetY);
   }
 
-  private runAutoBattle(): void {
-    if (!this.battleSim) return;
-    const fighters = Array.from(this.battleSim.fighters.entries());
-    if (fighters.length < 2) return;
+  private handleGestureAttack(client: Client, data: { moveId: string; drawingData?: string }): void {
+    if (this.state.phase !== "battle" || !this.battleSim) return;
+    const moves = this.playerGestureMoves.get(client.sessionId);
+    if (!moves) return;
+    const move = moves.find((m) => m.id === data.moveId);
+    if (!move) return;
 
-    for (const [id, fighter] of fighters) {
-      if (fighter.hp <= 0) continue;
-      const opponent = fighters.find(([oid]) => oid !== id)?.[1];
-      if (!opponent || opponent.hp <= 0) continue;
+    const key = `${client.sessionId}:${move.id}`;
+    const now = Date.now() / 1000;
+    const readyAt = this.gestureCooldowns.get(key) ?? 0;
+    if (now < readyAt) return;
 
-      const dx = opponent.x - fighter.x;
-      const dist = Math.sqrt(dx * dx + (opponent.y - fighter.y) ** 2);
+    const targetId = Array.from(this.state.players.keys()).find((id) => id !== client.sessionId) ?? null;
 
-      this.battleSim.handleMove(id, opponent.x, opponent.y);
+    this.gestureCooldowns.set(key, now + this.GESTURE_COOLDOWN_SEC);
+    this.battleSim.handleGestureAttack(client.sessionId, move.power);
 
-      for (const ability of fighter.abilities) {
-        if (ability.cooldownRemaining > 0) continue;
-        if (ability.type === "fireProjectile") {
-          this.battleSim.handleAbility(id, "fireProjectile", opponent.x, opponent.y);
-          break;
-        }
-        if (ability.type === "melee" && dist <= 70) {
-          this.battleSim.handleAbility(id, "melee");
-          break;
-        }
-      }
+    if (targetId) {
+      this.broadcast("gestureAttackVisual", {
+        playerId: client.sessionId,
+        targetId,
+        gesture: move.gesture,
+        action: move.action,
+        power: move.power,
+        drawingData: move.gesture === "draw" ? data.drawingData : undefined,
+      });
     }
   }
 
@@ -330,14 +361,9 @@ export class GameRoom extends Room<GameStateSchema> {
     const tickDt = 1 / SERVER_TICK_RATE;
     let tickCount = 0;
     const sendEvery = Math.round(SERVER_TICK_RATE / NETWORK_SEND_RATE);
-    const autoActionEvery = 15;
 
     this.battleInterval = setInterval(() => {
       if (!this.battleSim) return;
-
-      if (tickCount % autoActionEvery === 0) {
-        this.runAutoBattle();
-      }
 
       const events = this.battleSim.tick(tickDt);
 
@@ -383,6 +409,8 @@ export class GameRoom extends Room<GameStateSchema> {
     this.battleSim = null;
     this.playerConfigs.clear();
     this.playerDrawings.clear();
+    this.playerGestureMoves.clear();
+    this.gestureCooldowns.clear();
 
     this.state.phase = "lobby";
     this.state.timer = 0;
@@ -404,6 +432,7 @@ export class GameRoom extends Room<GameStateSchema> {
       player.fighterName = "";
       player.fighterDescription = "";
       player.spriteData = "";
+      player.gestureMoveSummary = "";
       player.abilities.clear();
     });
 
