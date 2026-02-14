@@ -542,7 +542,7 @@ export class BattleScene extends Phaser.Scene {
 
   private spawnFallbackDrawAttack(spawnX: number, spawnY: number, targetId: string): void {
     const key = `drawFallback_${Date.now()}`;
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
+    const g = this.make.graphics({ x: 0, y: 0 }, false);
     g.fillStyle(0x1a1a1a, 1);
     g.fillCircle(44, 44, 36);
     g.generateTexture(key, 88, 88);
