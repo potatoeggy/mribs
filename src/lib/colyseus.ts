@@ -4,6 +4,9 @@ import { Client, Room } from "colyseus.js";
 
 let client: Client | null = null;
 
+const serverHttpUrl =
+  (process.env.NEXT_PUBLIC_COLYSEUS_URL || "ws://localhost:2567").replace(/^ws/, "http");
+
 export function getColyseusClient(): Client {
   if (!client) {
     const url = process.env.NEXT_PUBLIC_COLYSEUS_URL || "ws://localhost:2567";
@@ -12,53 +15,46 @@ export function getColyseusClient(): Client {
   return client;
 }
 
-/**
- * Create a new game room with optional config.
- */
+async function findRoomIdByCode(code: string): Promise<string> {
+  const res = await fetch(`${serverHttpUrl}/rooms/find/${encodeURIComponent(code)}`);
+  if (!res.ok) {
+    throw new Error(`Room with code "${code}" not found or is full`);
+  }
+  const data = await res.json();
+  return data.roomId;
+}
+
 export async function createRoom(options?: Record<string, unknown>): Promise<Room> {
   const c = getColyseusClient();
   return await c.create("game", options);
 }
 
-/**
- * Join an existing room by its Colyseus room ID.
- */
-export async function joinRoomById(roomId: string): Promise<Room> {
+export async function joinRoomById(roomId: string, retries = 3): Promise<Room> {
   const c = getColyseusClient();
-  return await c.joinById(roomId, {});
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await c.joinById(roomId, {});
+    } catch (err) {
+      const isLocked = err instanceof Error && err.message.includes("is locked");
+      if (!isLocked || i === retries - 1) throw err;
+      await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  throw new Error("failed to join room");
 }
 
-/**
- * Join a room by room code. The server's GameRoom stores roomCode in its state.
- * We use joinOrCreate to either join an existing room or create a new one.
- *
- * For joining by code, we pass the code as an option and let the server handle matching.
- */
 export async function joinByCode(code: string): Promise<Room> {
-  const c = getColyseusClient();
-  // Pass the code as an option; the server can use it for matching
-  return await c.join("game", { roomCode: code });
+  const roomId = await findRoomIdByCode(code);
+  return await joinRoomById(roomId);
 }
 
-/**
- * Create a new room or join by code.
- */
 export async function joinOrCreate(
   code?: string,
   options?: Record<string, unknown>
 ): Promise<Room> {
-  const c = getColyseusClient();
-
   if (code && code !== "new") {
-    // Try to join an existing room by code
-    try {
-      return await c.join("game", { roomCode: code });
-    } catch {
-      // If join fails, the room might not exist or is full
-      throw new Error(`Room with code "${code}" not found or is full`);
-    }
+    const roomId = await findRoomIdByCode(code);
+    return await joinRoomById(roomId);
   }
-
-  // Create new room
-  return await c.create("game", options || {});
+  return await createRoom(options);
 }

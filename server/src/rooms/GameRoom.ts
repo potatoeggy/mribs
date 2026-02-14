@@ -42,11 +42,6 @@ export class GameRoom extends Room<GameStateSchema> {
 
   maxClients = 2;
 
-  // Allow clients to filter by roomCode when joining
-  static get filterBy(): string[] {
-    return ["roomCode"];
-  }
-
   onCreate(options: Record<string, unknown>): void {
     this.setState(new GameStateSchema());
     this.state.roomCode = (options.roomCode as string) || generateRoomCode();
@@ -88,7 +83,10 @@ export class GameRoom extends Room<GameStateSchema> {
     this.state.players.delete(client.sessionId);
     console.log(`${client.sessionId} left room ${this.state.roomCode}`);
 
-    // If in battle, the remaining player wins
+    if (this.clients.length < this.maxClients) {
+      this.unlock();
+    }
+
     if (this.state.phase === "battle" && this.state.players.size === 1) {
       const remaining = Array.from(this.state.players.keys())[0];
       this.endBattle(remaining);

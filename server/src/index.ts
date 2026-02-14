@@ -1,4 +1,4 @@
-import { Server } from "colyseus";
+import { Server, matchMaker } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { monitor } from "@colyseus/monitor";
 import express from "express";
@@ -20,6 +20,17 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+app.get("/rooms/find/:code", async (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const rooms = await matchMaker.query({ name: "game", private: false });
+  const match = rooms.find((r) => r.metadata?.roomCode === code);
+  if (match) {
+    res.json({ roomId: match.roomId });
+  } else {
+    res.status(404).json({ error: "room not found" });
+  }
+});
+
 // Colyseus monitor (dev only)
 if (process.env.NODE_ENV !== "production") {
   app.use("/colyseus", monitor());
@@ -38,6 +49,6 @@ const gameServer = new Server({
 gameServer.define("game", GameRoom);
 
 gameServer.listen(port).then(() => {
-  console.log(`🎮 Scribble Fighters server listening on port ${port}`);
+  console.log(`Scribble Fighters server listening on port ${port}`);
   console.log(`   Monitor: http://localhost:${port}/colyseus`);
 });
