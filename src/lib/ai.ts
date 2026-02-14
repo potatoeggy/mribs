@@ -42,20 +42,23 @@ You MUST respond with a valid JSON object matching the FighterConfig schema. Be 
 
 const FIGHTER_CONFIG_SCHEMA = {
   type: "object" as const,
+  additionalProperties: false,
   properties: {
-    name: { type: "string" as const, description: "Creative name for the creature" },
-    description: { type: "string" as const, description: "Brief description of the creature" },
+    name: { type: "string" as const },
+    description: { type: "string" as const },
     health: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
-        maxHp: { type: "number" as const, minimum: 50, maximum: 150 },
+        maxHp: { type: "number" as const },
       },
       required: ["maxHp"],
     },
     movement: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
-        speed: { type: "number" as const, minimum: 1, maximum: 5 },
+        speed: { type: "number" as const },
         type: { type: "string" as const, enum: ["walk", "hover"] },
       },
       required: ["speed", "type"],
@@ -64,18 +67,34 @@ const FIGHTER_CONFIG_SCHEMA = {
       type: "array" as const,
       items: {
         type: "object" as const,
+        additionalProperties: false,
         properties: {
           type: {
             type: "string" as const,
             enum: ["flying", "fireProjectile", "melee", "shield", "dash"],
           },
-          params: { type: "object" as const },
+          params: {
+            type: "object" as const,
+            additionalProperties: false,
+            properties: {
+              damage: { type: ["number", "null"] as const },
+              cooldown: { type: ["number", "null"] as const },
+              speed: { type: ["number", "null"] as const },
+              range: { type: ["number", "null"] as const },
+              label: { type: ["string", "null"] as const },
+              blockAmount: { type: ["number", "null"] as const },
+              duration: { type: ["number", "null"] as const },
+              distance: { type: ["number", "null"] as const },
+            },
+            required: ["damage", "cooldown", "speed", "range", "label", "blockAmount", "duration", "distance"],
+          },
         },
         required: ["type", "params"],
       },
     },
     spriteBounds: {
       type: "object" as const,
+      additionalProperties: false,
       properties: {
         x: { type: "number" as const },
         y: { type: "number" as const },
@@ -84,7 +103,7 @@ const FIGHTER_CONFIG_SCHEMA = {
       },
       required: ["x", "y", "width", "height"],
     },
-    balanceScore: { type: "number" as const, minimum: 1, maximum: 10 },
+    balanceScore: { type: "number" as const },
   },
   required: ["name", "description", "health", "movement", "abilities", "spriteBounds", "balanceScore"],
 };
