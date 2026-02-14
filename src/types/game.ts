@@ -1,0 +1,35 @@
+// Re-export shared types for convenience
+export type {
+  GamePhase,
+  ComponentType,
+  FighterConfig,
+  AbilityConfig,
+  MovementParams,
+  FlyingParams,
+  ProjectileParams,
+  MeleeParams,
+  ShieldParams,
+  DashParams,
+  Vec2,
+  ProjectileState,
+  PlayerBattleState,
+  InputMessage,
+  AbilityMessage,
+  DrawingSubmitMessage,
+  ReadyMessage,
+  ClientMessage,
+  RoomConfig,
+  GestureType,
+  GestureResult,
+} from "@shared/types";
+
+export {
+  DEFAULT_ROOM_CONFIG,
+  ARENA_WIDTH,
+  ARENA_HEIGHT,
+  GROUND_Y,
+  GRAVITY,
+  SERVER_TICK_RATE,
+  NETWORK_SEND_RATE,
+  BATTLE_INK_COSTS,
+} from "@shared/types";

@@ -1,0 +1,214 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #fefef6;
+  --foreground: #1a1a1a;
+  --paper: #fefef6;
+  --paper-grid: #e8e8e0;
+  --ink: #1a1a1a;
+  --ink-light: #666;
+  --accent-red: #e74c3c;
+  --accent-blue: #3498db;
+  --accent-green: #2ecc71;
+  --accent-yellow: #f39c12;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-hand: 'Caveat', 'Patrick Hand', cursive;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Caveat', 'Patrick Hand', cursive;
+  background-image: 
+    linear-gradient(var(--paper-grid) 1px, transparent 1px);
+  background-size: 100% 30px;
+  min-height: 100vh;
+}
+
+/* Scribble-style font utility */
+.font-hand {
+  font-family: 'Caveat', 'Patrick Hand', cursive;
+}
+
+/* Sketchy button style */
+.sketchy-button {
+  position: relative;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 2px 2px 0px #1a1a1a;
+}
+
+.sketchy-button:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px #1a1a1a;
+}
+
+.sketchy-button:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 0px 0px 0px #1a1a1a;
+}
+
+.sketchy-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Sketchy border */
+.sketchy-border {
+  position: relative;
+  border: 2px solid #1a1a1a;
+  border-radius: 3px;
+}
+
+.sketchy-border::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+/* Paper card */
+.paper-card {
+  background: #fefef6;
+  border: 2px solid #1a1a1a;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0px rgba(0,0,0,0.15);
+  position: relative;
+}
+
+.paper-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(var(--paper-grid) 1px, transparent 1px);
+  background-size: 100% 30px;
+  opacity: 0.3;
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+/* Wobble animation for game elements */
+@keyframes wobble {
+  0%, 100% { transform: rotate(-1deg); }
+  25% { transform: rotate(0.5deg); }
+  50% { transform: rotate(1deg); }
+  75% { transform: rotate(-0.5deg); }
+}
+
+.wobble {
+  animation: wobble 2s ease-in-out infinite;
+}
+
+/* Shake animation for damage */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Pulse animation */
+@keyframes scribble-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.scribble-pulse {
+  animation: scribble-pulse 1.5s ease-in-out infinite;
+}
+
+/* Scribble underline effect */
+.scribble-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.scribble-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 1px;
+  transform: rotate(-0.5deg);
+  opacity: 0.7;
+}
+
+/* Input styles */
+input[type="text"],
+input[type="number"] {
+  font-family: 'Caveat', 'Patrick Hand', cursive;
+  font-size: 1.2rem;
+  border: 2px solid #1a1a1a;
+  border-radius: 3px;
+  padding: 0.5rem 1rem;
+  background: #fefef6;
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+  box-shadow: 2px 2px 0px #1a1a1a;
+}
+
+/* Range slider scribble style */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #ccc;
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  cursor: pointer;
+  border: 2px solid #fefef6;
+  box-shadow: 1px 1px 0px rgba(0,0,0,0.3);
+}
+
+/* Scrollbar hiding for game */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Loading dots animation */
+@keyframes loading-dots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60%, 100% { content: '...'; }
+}
+
+.loading-dots::after {
+  content: '...';
+  animation: loading-dots 1.5s infinite;
+}
