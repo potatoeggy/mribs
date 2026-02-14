@@ -18,6 +18,9 @@ export function createPhaserConfig(
         debug: false,
       },
     },
+    audio: {
+      noAudio: true,
+    },
     scene,
     scale: {
       mode: Phaser.Scale.FIT,

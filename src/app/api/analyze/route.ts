@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your-openai-api-key-here") {
+    if (!process.env.OPENAI_API_KEY) {
       // Return a fallback config for development without API key
       console.warn("No OpenAI API key configured, using fallback fighter config");
       return NextResponse.json(fallbackFighterConfig());

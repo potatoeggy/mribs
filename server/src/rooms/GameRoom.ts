@@ -118,15 +118,17 @@ export class GameRoom extends Room<GameStateSchema> {
 
   private handleDrawingSubmit(client: Client, data: { imageData: string; spriteData?: string }): void {
     const player = this.state.players.get(client.sessionId);
-    if (!player || this.state.phase !== "drawing") return;
+    if (!player) return;
 
-    player.drawingSubmitted = true;
-    this.playerDrawings.set(client.sessionId, data.imageData);
     if (data.spriteData) {
       player.spriteData = data.spriteData;
     }
 
-    // Check if all players have submitted
+    if (this.state.phase !== "drawing") return;
+
+    player.drawingSubmitted = true;
+    this.playerDrawings.set(client.sessionId, data.imageData);
+
     let allSubmitted = true;
     this.state.players.forEach((p) => {
       if (!p.drawingSubmitted) allSubmitted = false;
@@ -159,9 +161,15 @@ export class GameRoom extends Room<GameStateSchema> {
       }
     }
 
-    // Check if all configs received
     if (this.playerConfigs.size === this.state.players.size) {
-      this.startRevealPhase();
+      this.clearIntervals();
+      this.state.timer = 8;
+      this.timerInterval = setInterval(() => {
+        this.state.timer -= 1;
+        if (this.state.timer <= 0) {
+          this.startBattle();
+        }
+      }, 1000);
     }
   }
 
@@ -173,6 +181,35 @@ export class GameRoom extends Room<GameStateSchema> {
   private handleAbility(client: Client, data: { abilityType: string; targetX?: number; targetY?: number }): void {
     if (this.state.phase !== "battle" || !this.battleSim) return;
     this.battleSim.handleAbility(client.sessionId, data.abilityType, data.targetX, data.targetY);
+  }
+
+  private runAutoBattle(): void {
+    if (!this.battleSim) return;
+    const fighters = Array.from(this.battleSim.fighters.entries());
+    if (fighters.length < 2) return;
+
+    for (const [id, fighter] of fighters) {
+      if (fighter.hp <= 0) continue;
+      const opponent = fighters.find(([oid]) => oid !== id)?.[1];
+      if (!opponent || opponent.hp <= 0) continue;
+
+      const dx = opponent.x - fighter.x;
+      const dist = Math.sqrt(dx * dx + (opponent.y - fighter.y) ** 2);
+
+      this.battleSim.handleMove(id, opponent.x, opponent.y);
+
+      for (const ability of fighter.abilities) {
+        if (ability.cooldownRemaining > 0) continue;
+        if (ability.type === "fireProjectile") {
+          this.battleSim.handleAbility(id, "fireProjectile", opponent.x, opponent.y);
+          break;
+        }
+        if (ability.type === "melee" && dist <= 70) {
+          this.battleSim.handleAbility(id, "melee");
+          break;
+        }
+      }
+    }
   }
 
   // ---- Phase Transitions ----
@@ -211,7 +248,6 @@ export class GameRoom extends Room<GameStateSchema> {
     this.timerInterval = setInterval(() => {
       this.state.timer -= 1;
       if (this.state.timer <= 0) {
-        // Use fallback configs for any missing
         this.state.players.forEach((p) => {
           if (!this.playerConfigs.has(p.id)) {
             this.playerConfigs.set(p.id, this.fallbackConfig());
@@ -221,7 +257,7 @@ export class GameRoom extends Room<GameStateSchema> {
             p.hp = 100;
           }
         });
-        this.startRevealPhase();
+        this.startBattle();
       }
     }, 1000);
 
@@ -284,9 +320,14 @@ export class GameRoom extends Room<GameStateSchema> {
     const tickDt = 1 / SERVER_TICK_RATE;
     let tickCount = 0;
     const sendEvery = Math.round(SERVER_TICK_RATE / NETWORK_SEND_RATE);
+    const autoActionEvery = 15;
 
     this.battleInterval = setInterval(() => {
       if (!this.battleSim) return;
+
+      if (tickCount % autoActionEvery === 0) {
+        this.runAutoBattle();
+      }
 
       const events = this.battleSim.tick(tickDt);
 

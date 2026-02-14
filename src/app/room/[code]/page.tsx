@@ -62,10 +62,11 @@ export default function GameRoomPage() {
   // Drawing and sprite data
   const [myDrawingData, setMyDrawingData] = useState<string>("");
   const [spriteDataMap, setSpriteDataMap] = useState<Map<string, string>>(new Map());
-  const [, setMyFighterConfig] = useState<FighterConfig | null>(null);
+  const [myFighterConfig, setMyFighterConfig] = useState<FighterConfig | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
+  const myDrawingDataRef = useRef<string>("");
 
   // Connect to room
   useEffect(() => {
@@ -132,10 +133,10 @@ export default function GameRoomPage() {
           setPlayers(newPlayers);
         });
 
-        // Listen for analysis trigger
         r.onMessage("startAnalysis", () => {
-          if (myDrawingData) {
-            analyzeDrawing(r, myDrawingData);
+          console.log("[startAnalysis] received, drawingData length:", myDrawingDataRef.current?.length || 0);
+          if (myDrawingDataRef.current) {
+            analyzeDrawing(r, myDrawingDataRef.current);
           }
         });
 
@@ -183,19 +184,11 @@ export default function GameRoomPage() {
         const config: FighterConfig = await response.json();
         setMyFighterConfig(config);
 
-        // Extract sprite from drawing
-        let spriteData: string;
-        try {
-          spriteData = await extractSprite(imageData, config.spriteBounds);
-        } catch {
-          // Fallback to auto-detect bounds
-          const bounds = await autoDetectBounds(imageData);
-          spriteData = await extractSprite(imageData, bounds);
-        }
+        const bounds = await autoDetectBounds(imageData);
+        const spriteData = await extractSprite(imageData, bounds);
 
-        // Send config and sprite to server
-        r.send("fighterConfig", config);
         r.send("submitDrawing", { imageData, spriteData });
+        r.send("fighterConfig", config);
 
         // Update local sprite map
         setSpriteDataMap((prev) => {
@@ -205,8 +198,7 @@ export default function GameRoomPage() {
         });
       } catch (err) {
         console.error("Analysis failed:", err);
-        // Send fallback
-        r.send("fighterConfig", {
+        const fallbackConfig = {
           name: "Scribble Warrior",
           description: "A brave scribble!",
           health: { maxHp: 100 },
@@ -217,7 +209,20 @@ export default function GameRoomPage() {
           ],
           spriteBounds: { x: 0, y: 0, width: 100, height: 100 },
           balanceScore: 5,
-        });
+        };
+        try {
+          const bounds = await autoDetectBounds(imageData);
+          const spriteData = await extractSprite(imageData, bounds);
+          r.send("submitDrawing", { imageData, spriteData });
+          setSpriteDataMap((prev) => {
+            const next = new Map(prev);
+            next.set(r.sessionId, spriteData);
+            return next;
+          });
+        } catch {
+          r.send("submitDrawing", { imageData });
+        }
+        r.send("fighterConfig", fallbackConfig);
       } finally {
         setIsAnalyzing(false);
       }
@@ -229,6 +234,7 @@ export default function GameRoomPage() {
   const handleDrawingSubmit = useCallback(
     (imageData: string) => {
       setMyDrawingData(imageData);
+      myDrawingDataRef.current = imageData;
       if (room) {
         room.send("submitDrawing", { imageData });
       }
@@ -273,21 +279,21 @@ export default function GameRoomPage() {
   // Get available abilities for battle controls
   const myAbilities = myPlayer?.abilities?.map((a) => a.abilityType) || [];
 
-  // Build sprite data map from all players
   useEffect(() => {
-    const newMap = new Map<string, string>();
-    players.forEach((p, id) => {
-      if (p.spriteData) {
-        newMap.set(id, p.spriteData);
-      }
-    });
-    if (newMap.size > 0) {
-      setSpriteDataMap((prev) => {
-        const merged = new Map(prev);
-        newMap.forEach((v, k) => merged.set(k, v));
-        return merged;
+    setSpriteDataMap((prev) => {
+      let changed = false;
+      players.forEach((p, id) => {
+        if (p.spriteData && prev.get(id) !== p.spriteData) {
+          changed = true;
+        }
       });
-    }
+      if (!changed) return prev;
+      const next = new Map(prev);
+      players.forEach((p, id) => {
+        if (p.spriteData) next.set(id, p.spriteData);
+      });
+      return next;
+    });
   }, [players]);
 
   // Error state
@@ -390,37 +396,66 @@ export default function GameRoomPage() {
 
         {/* ANALYZING PHASE */}
         {phase === "analyzing" && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-6">
-            <h2 className="text-4xl font-bold text-gray-800 animate-pulse">
-              AI is analyzing your creation<span className="loading-dots"></span>
-            </h2>
-            <p className="text-xl text-gray-500">
-              {isAnalyzing
-                ? "Determining abilities and stats..."
-                : "Preparing for battle..."}
-            </p>
-            <div className="wobble">
-              <svg width="80" height="80" viewBox="0 0 80 80">
-                <circle
-                  cx="40"
-                  cy="40"
-                  r="30"
-                  fill="none"
-                  stroke="#1a1a1a"
-                  strokeWidth="3"
-                  strokeDasharray="10 5"
-                >
-                  <animateTransform
-                    attributeName="transform"
-                    type="rotate"
-                    from="0 40 40"
-                    to="360 40 40"
-                    dur="2s"
-                    repeatCount="indefinite"
-                  />
-                </circle>
-              </svg>
-            </div>
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8">
+            {isAnalyzing ? (
+              <>
+                <h2 className="text-4xl font-bold text-gray-800 animate-pulse">
+                  AI is analyzing your creation<span className="loading-dots"></span>
+                </h2>
+                <div className="wobble">
+                  <svg width="80" height="80" viewBox="0 0 80 80">
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="30"
+                      fill="none"
+                      stroke="#1a1a1a"
+                      strokeWidth="3"
+                      strokeDasharray="10 5"
+                    >
+                      <animateTransform
+                        attributeName="transform"
+                        type="rotate"
+                        from="0 40 40"
+                        to="360 40 40"
+                        dur="2s"
+                        repeatCount="indefinite"
+                      />
+                    </circle>
+                  </svg>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-6 w-full max-w-3xl">
+                <h2 className="text-3xl font-bold text-gray-800">The AI sees...</h2>
+                {timer > 0 && (
+                  <p className="text-lg text-gray-500">Battle starts in {timer}s</p>
+                )}
+                <div className="flex gap-8 w-full justify-center">
+                  {Array.from(players.values()).map((p) => (
+                    <div key={p.id} className="flex-1 flex flex-col items-center gap-3 border border-gray-300 rounded-lg p-5 bg-white max-w-xs">
+                      {spriteDataMap.get(p.id) ? (
+                        <img
+                          src={spriteDataMap.get(p.id)}
+                          alt={p.fighterName || p.name}
+                          className="w-28 h-28 object-contain border border-gray-200 rounded-lg bg-gray-50 p-2"
+                        />
+                      ) : (
+                        <div className="w-28 h-28 flex items-center justify-center border border-gray-200 rounded-lg bg-gray-50 text-gray-400 text-sm">
+                          analyzing...
+                        </div>
+                      )}
+                      <p className="font-bold text-xl text-gray-800">{p.fighterName || p.name}</p>
+                      <p className="text-gray-600 text-sm text-center">{p.fighterDescription || "Waiting for analysis..."}</p>
+                      <div className="w-full text-xs text-gray-500 space-y-0.5">
+                        <p>HP: {p.maxHp}</p>
+                        <p>Abilities: {p.abilities?.map((a) => a.label || a.abilityType).join(", ") || "..."}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
