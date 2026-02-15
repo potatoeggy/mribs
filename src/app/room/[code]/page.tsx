@@ -28,14 +28,6 @@ const BattleWrapper = dynamic(() => import("@/components/BattleWrapper"), {
   ),
 });
 
-// Live commentator (LiveAvatar) - client-only
-const LiveCommentator = dynamic(() => import("@/components/LiveCommentator"), {
-  ssr: false,
-});
-
-/** Host-only commentator (Free tier = 1 concurrency). Set to false for both players when on Essential+ (20 concurrency). */
-const COMMENTATOR_HOST_ONLY = true;
-
 interface GestureMoveSummary {
   action: string;
   power: number;
@@ -114,9 +106,7 @@ export default function GameRoomPage() {
   const myDrawingDataRef = useRef<string>("");
   const myInkSpentRef = useRef<number>(100);
   const previousPhaseRef = useRef<string>("");
-  const commentatorRef = useRef<{ speak: (text: string) => void } | null>(null);
   const resultPhaseStartRef = useRef<number>(0);
-  const battleStartSpokenRef = useRef(false);
   const [drawingRoundKey, setDrawingRoundKey] = useState(0);
   const [battleCountdown, setBattleCountdown] = useState(0);
   /** Summon ink from BattleWrapper (only changes on summon, not battle sim) */
@@ -363,31 +353,6 @@ export default function GameRoomPage() {
     return () => clearInterval(id);
   }, [phase]);
 
-  // Battle-start commentator intro (at end of countdown, commentator should be ready)
-  useEffect(() => {
-    if (phase !== "battle") {
-      battleStartSpokenRef.current = false;
-      return;
-    }
-    const t = setTimeout(async () => {
-      if (battleStartSpokenRef.current) return;
-      battleStartSpokenRef.current = true;
-      try {
-        const res = await fetch("/api/commentary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ eventType: "battleStart" }),
-        });
-        const data = await res.json();
-        const line = data?.line || "Let's get ready to rumble!";
-        commentatorRef.current?.speak(line);
-      } catch {
-        commentatorRef.current?.speak("Let's get ready to rumble!");
-      }
-    }, BATTLE_COUNTDOWN_SEC * 1000);
-    return () => clearTimeout(t);
-  }, [phase]);
-
   // After K.O., wait RESULT_DELAY_MS before showing the result screen (interval-based so it’s reliable)
   useEffect(() => {
     if (phase !== "result" || showResultScreen) return;
@@ -599,9 +564,9 @@ export default function GameRoomPage() {
   }
 
   return (
-    <main className="flex flex-col min-h-screen">
+    <main className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-gray-300">
+      <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-300">
         <Link
           href="/"
           className="text-2xl font-bold text-gray-800 hover:text-gray-600"
@@ -618,8 +583,9 @@ export default function GameRoomPage() {
         </div>
       </header>
 
-      {/* Main content - changes based on phase */}
-      <div className="flex-1 flex flex-col">
+      {/* Main content + chat sidebar (Twitch-style) */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-auto">
         {/* LOBBY PHASE */}
         {phase === "lobby" && (
           <Lobby
@@ -871,11 +837,6 @@ export default function GameRoomPage() {
                     mySessionId={mySessionId}
                     spriteDataMap={spriteDataMap}
                     summonedFighters={summonedFighters}
-                    onCommentary={
-                      !COMMENTATOR_HOST_ONLY || code === "new"
-                        ? (line) => commentatorRef.current?.speak(line)
-                        : undefined
-                    }
                     battleCountdownRemaining={battleCountdown}
                     onSummonInkChange={setMySummonInk}
                   />
@@ -900,16 +861,6 @@ export default function GameRoomPage() {
                     )}
                 </div>
               )}
-            {(!COMMENTATOR_HOST_ONLY || code === "new") && (
-              <div className="flex justify-end px-4 pb-2 shrink-0">
-                <LiveCommentator
-                  ref={commentatorRef}
-                  avatarId={undefined}
-                  voiceId={undefined}
-                  className="shrink-0"
-                />
-              </div>
-            )}
           </div>
         )}
 
@@ -930,20 +881,20 @@ export default function GameRoomPage() {
             timer={timer}
           />
         )}
-      </div>
+        </div>
 
-      {/* Chat - fixed at bottom */}
-      {room && (
-        <div className="shrink-0 p-4 border-t border-gray-200 bg-white/95">
-          <div className="max-w-2xl mx-auto">
+        {/* Chat sidebar - right side */}
+        {room && (
+          <div className="w-80 shrink-0 border-l border-gray-200 bg-white flex flex-col min-h-0 overflow-hidden">
             <BattleChat
               room={room}
               defaultName={myPlayer?.fighterName || myPlayer?.name || "Player"}
-              className="max-w-md"
+              className="flex-1 min-h-0 flex flex-col"
+              sidebar
             />
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }

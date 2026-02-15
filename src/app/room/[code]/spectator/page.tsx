@@ -13,6 +13,10 @@ import type { Stroke } from "@/lib/ink";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
+const LiveCommentator = dynamic(() => import("@/components/LiveCommentator"), {
+  ssr: false,
+});
+
 const BattleWrapper = dynamic(() => import("@/components/BattleWrapper"), {
   ssr: false,
   loading: () => (
@@ -96,12 +100,33 @@ export default function SpectatorPage() {
   const [player2Ink, setPlayer2Ink] = useState(0);
 
   const roomRef = useRef<Room | null>(null);
+  const commentatorRef = useRef<{ speak: (text: string) => void } | null>(null);
   const previousPhaseRef = useRef<string>("");
   const resultPhaseStartRef = useRef<number>(0);
   const playerInkInitializedRef = useRef(false);
   const battleCountdownStartRef = useRef<number>(0);
   const RESULT_DELAY_MS = 1700;
   const BATTLE_COUNTDOWN_SEC = 6;
+
+  // Battle-start commentator intro (spectators get the commentator)
+  useEffect(() => {
+    if (phase !== "battle") return;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/commentary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventType: "battleStart" }),
+        });
+        const data = await res.json();
+        const line = data?.line || "Let's get ready to rumble!";
+        commentatorRef.current?.speak(line);
+      } catch {
+        commentatorRef.current?.speak("Let's get ready to rumble!");
+      }
+    }, BATTLE_COUNTDOWN_SEC * 1000);
+    return () => clearTimeout(t);
+  }, [phase]);
 
   const spectatorUrl =
     typeof window !== "undefined"
@@ -389,8 +414,8 @@ export default function SpectatorPage() {
   }
 
   return (
-    <main className="flex flex-col min-h-screen">
-      <header className="flex items-center justify-between px-6 py-3 border-b border-gray-300">
+    <main className="flex flex-col h-screen overflow-hidden">
+      <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-300">
         <Link
           href="/"
           className="text-2xl font-bold text-gray-800 hover:text-gray-600"
@@ -408,7 +433,8 @@ export default function SpectatorPage() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-auto">
         {phase === "lobby" && (
           <Lobby
             roomCode={roomCode}
@@ -509,6 +535,34 @@ export default function SpectatorPage() {
           phase === "battle" ||
           (phase === "result" && !showResultScreen)) && (
           <div className="flex-1 flex flex-col">
+            {/* Commentator: mount during reveal so it connects before battle */}
+            <div className="shrink-0 px-4 pt-2 flex items-start gap-4">
+              <LiveCommentator
+                ref={commentatorRef}
+                avatarId={undefined}
+                voiceId={undefined}
+                className="w-[200px] shrink-0"
+              />
+              {phase === "battle" || (phase === "result" && !showResultScreen) ? (
+                <div className="flex-1 flex items-center justify-center gap-8 min-w-0">
+                  <InkBar
+                    ink={player1Ink}
+                    maxInk={player1?.maxInk || 6000}
+                    name={player1?.fighterName || player1?.name || "P1"}
+                    side="left"
+                    color={player1?.teamColor || "#ef4444"}
+                  />
+                  <span className="text-2xl font-bold text-gray-400 mt-2">VS</span>
+                  <InkBar
+                    ink={player2Ink}
+                    maxInk={player2?.maxInk || 6000}
+                    name={player2?.fighterName || player2?.name || "P2"}
+                    side="right"
+                    color={player2?.teamColor || "#3b82f6"}
+                  />
+                </div>
+              ) : null}
+            </div>
             {phase === "reveal" && player1 && player2 && (
               <RevealScreen
                 fighter1={{
@@ -535,33 +589,13 @@ export default function SpectatorPage() {
               player1 &&
               player2 && (
                 <div className="flex-1 flex flex-col gap-3 p-4">
-                  <div className="flex items-start justify-between gap-4 px-4 flex-wrap">
-                    <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
-                      <InkBar
-                        ink={player1Ink}
-                        maxInk={player1.maxInk || 6000}
-                        name={player1.fighterName || player1.name}
-                        side="left"
-                        color={player1.teamColor || "#ef4444"}
-                      />
-                      <span className="text-2xl font-bold text-gray-400 mt-2">
-                        VS
-                      </span>
-                      <InkBar
-                        ink={player2Ink}
-                        maxInk={player2.maxInk || 6000}
-                        name={player2.fighterName || player2.name}
-                        side="right"
-                        color={player2.teamColor || "#3b82f6"}
-                      />
-                    </div>
-                  </div>
                   <BattleWrapper
                     room={room}
                     mySessionId=""
                     spriteDataMap={spriteDataMap}
                     summonedFighters={summonedFighters}
                     battleCountdownRemaining={battleCountdown}
+                    onCommentary={(line) => commentatorRef.current?.speak(line)}
                     spectator
                   />
                 </div>
@@ -585,16 +619,20 @@ export default function SpectatorPage() {
             spectator
           />
         )}
-      </div>
-
-      {/* Chat - fixed at bottom */}
-      {room && (
-        <div className="shrink-0 p-4 border-t border-gray-200 bg-white/95">
-          <div className="max-w-2xl mx-auto">
-            <BattleChat room={room} className="max-w-md" />
-          </div>
         </div>
-      )}
+
+        {/* Chat sidebar - right side (Twitch-style) */}
+        {room && (
+          <div className="w-80 shrink-0 border-l border-gray-200 bg-white flex flex-col min-h-0 overflow-hidden">
+            <BattleChat
+              room={room}
+              defaultName="Spectator"
+              className="flex-1 min-h-0 flex flex-col"
+              sidebar
+            />
+          </div>
+        )}
+      </div>
     </main>
   );
 }

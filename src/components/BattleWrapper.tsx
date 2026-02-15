@@ -143,7 +143,7 @@ export default function BattleWrapper({
   const roomRef = useRef(room);
   const lastCommentaryRef = useRef(0);
   const onCommentaryRef = useRef(onCommentary);
-  onCommentaryRef.current = spectator ? undefined : onCommentary;
+  onCommentaryRef.current = onCommentary;
   const COMMENTARY_COOLDOWN_MS = 900;
   /** AI-generated commentary = fun & varied. Preset = boring repeats. */
   const USE_AI_COMMENTARY = true;

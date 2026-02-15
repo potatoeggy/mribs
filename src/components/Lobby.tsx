@@ -10,7 +10,10 @@ interface LobbyProps {
   onCopyCode: () => void;
   inkBudget: number;
   drawingTimeLimit: number;
-  onConfigChange?: (config: { inkBudget: number; drawingTimeLimit: number }) => void;
+  onConfigChange?: (config: {
+    inkBudget: number;
+    drawingTimeLimit: number;
+  }) => void;
   isHost?: boolean;
   /** Spectator view: no ready/config, show spectator link */
   isSpectator?: boolean;
@@ -83,7 +86,7 @@ export default function Lobby({
         {!isSpectator && spectatorUrl && onCopySpectatorLinkAsHost && (
           <button
             onClick={handleCopySpectatorAsHost}
-            className="font-hand text-sm px-3 py-1.5 rounded-lg bg-blue-100 border border-blue-400 text-blue-800 hover:bg-blue-200 transition-colors mt-1"
+            className="font-hand text-md px-3 py-1.5 rounded-lg bg-blue-100 border border-blue-400 text-blue-800 hover:bg-blue-200 transition-colors mt-1"
           >
             {copiedSpectatorHost ? "Copied!" : "📺 Copy spectator link"}
           </button>
@@ -93,12 +96,16 @@ export default function Lobby({
       {/* Player status */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <div className={`w-4 h-4 rounded-full ${playerCount >= 1 ? "bg-green-500" : "bg-gray-300"}`} />
+          <div
+            className={`w-4 h-4 rounded-full ${playerCount >= 1 ? "bg-green-500" : "bg-gray-300"}`}
+          />
           <span className="font-hand text-lg">Player 1</span>
         </div>
         <span className="font-hand text-2xl text-gray-400">VS</span>
         <div className="flex items-center gap-2">
-          <div className={`w-4 h-4 rounded-full ${playerCount >= 2 ? "bg-green-500" : "bg-gray-300"}`} />
+          <div
+            className={`w-4 h-4 rounded-full ${playerCount >= 2 ? "bg-green-500" : "bg-gray-300"}`}
+          />
           <span className="font-hand text-lg">
             {playerCount >= 2 ? "Player 2" : "Waiting..."}
           </span>
@@ -109,7 +116,7 @@ export default function Lobby({
       {isSpectator && onCopySpectatorLink && (
         <button
           onClick={handleCopySpectator}
-          className="font-hand text-sm px-4 py-2 rounded-lg bg-blue-100 border-2 border-blue-400 text-blue-800 hover:bg-blue-200 transition-colors"
+          className="font-hand text-md px-4 py-2 rounded-lg bg-blue-100 border-2 border-blue-400 text-blue-800 hover:bg-blue-200 transition-colors"
         >
           {copiedSpectator ? "Copied!" : "📺 Copy spectator link"}
         </button>
@@ -118,7 +125,9 @@ export default function Lobby({
       {/* Game config (host only) */}
       {!isSpectator && isHost && onConfigChange && (
         <div className="flex flex-col items-center gap-3 p-4 border border-dashed border-gray-400 rounded-lg bg-white">
-          <p className="font-hand text-lg font-bold text-gray-700">Game Settings</p>
+          <p className="font-hand text-lg font-bold text-gray-700">
+            Game Settings
+          </p>
           <div className="flex items-center gap-3">
             <label className="font-hand text-sm text-gray-600">Ink:</label>
             <input
@@ -128,7 +137,10 @@ export default function Lobby({
               step={1000}
               value={inkBudget}
               onChange={(e) =>
-                onConfigChange({ inkBudget: Number(e.target.value), drawingTimeLimit })
+                onConfigChange({
+                  inkBudget: Number(e.target.value),
+                  drawingTimeLimit,
+                })
               }
               className="w-32"
             />
@@ -143,7 +155,10 @@ export default function Lobby({
               step={15}
               value={drawingTimeLimit}
               onChange={(e) =>
-                onConfigChange({ inkBudget, drawingTimeLimit: Number(e.target.value) })
+                onConfigChange({
+                  inkBudget,
+                  drawingTimeLimit: Number(e.target.value),
+                })
               }
               className="w-32"
             />
@@ -162,11 +177,15 @@ export default function Lobby({
               isReady
                 ? "bg-green-300 border-green-600 text-green-800"
                 : playerCount < 2
-                ? "bg-gray-200 border-gray-400 text-gray-400"
-                : "bg-yellow-300 border-yellow-600 text-yellow-800 hover:bg-yellow-400 hover:scale-105"
+                  ? "bg-gray-200 border-gray-400 text-gray-400"
+                  : "bg-yellow-300 border-yellow-600 text-yellow-800 hover:bg-yellow-400 hover:scale-105"
             }`}
           >
-            {isReady ? "Ready!" : playerCount < 2 ? "Waiting for opponent..." : "Ready Up!"}
+            {isReady
+              ? "Ready!"
+              : playerCount < 2
+                ? "Waiting for opponent..."
+                : "Ready Up!"}
           </button>
 
           {isReady && playerCount >= 2 && (
