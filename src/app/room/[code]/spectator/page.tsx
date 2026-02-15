@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import type { Room } from "colyseus.js";
 import { joinAsSpectator } from "@/lib/colyseus";
@@ -377,13 +377,24 @@ export default function SpectatorPage() {
     return () => clearInterval(id);
   }, [phase]);
 
-  const spriteDataMap = useMemo(() => {
+  // Stable spriteDataMap: only update when sprite data content changes, not on every state
+  // tick. Otherwise BattleWrapper's Phaser game would destroy/recreate every tick.
+  const spriteDataKey = Array.from(players.entries())
+    .filter(([, p]) => p.spriteData)
+    .map(([id, p]) => `${id}:${(p.spriteData as string).length}`)
+    .sort()
+    .join("|");
+  const [spriteDataMap, setSpriteDataMap] = useState<Map<string, string>>(
+    () => new Map(),
+  );
+  useEffect(() => {
     const next = new Map<string, string>();
     players.forEach((p, id) => {
       if (p.spriteData) next.set(id, p.spriteData);
     });
-    return next;
-  }, [players]);
+    setSpriteDataMap(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- spriteDataKey only: avoid updating on every state tick (would destroy Phaser)
+  }, [spriteDataKey]);
 
   const playerList = Array.from(players.values());
   const player1 = playerList[0];
