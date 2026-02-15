@@ -11,11 +11,6 @@ import {
 
 // ---- Lightweight types mirroring shared/types without import issues ----
 
-interface Vec2 {
-  x: number;
-  y: number;
-}
-
 interface ProjectileState {
   id: string;
   ownerId: string;

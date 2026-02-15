@@ -17,7 +17,7 @@ export default function SummonDrawingModal({
   isOpen,
   onClose,
   onSubmit,
-  inkCost,
+  inkCost: _inkCost,
   currentInk,
   inline = false,
   teamColor = "#1a1a1a",
