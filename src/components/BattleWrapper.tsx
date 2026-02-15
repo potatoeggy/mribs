@@ -62,6 +62,8 @@ interface BattleWrapperProps {
   onCommentary?: (line: string) => void;
   /** Seconds remaining until attacks enabled (Ready... START countdown) */
   battleCountdownRemaining?: number;
+  /** Called when summon ink changes (for parent to sync InkBar above battle) */
+  onSummonInkChange?: (ink: number) => void;
 }
 
 const SUMMON_INK_COST = 50;
@@ -122,6 +124,7 @@ export default function BattleWrapper({
   gestureMoves = [],
   onCommentary,
   battleCountdownRemaining = 0,
+  onSummonInkChange,
 }: BattleWrapperProps) {
   const battleReady = battleCountdownRemaining <= 0;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -142,6 +145,9 @@ export default function BattleWrapper({
   const [isSummoning, setIsSummoning] = useState(false);
   const [myInk, setMyInk] = useState(0);
   const [myTeamColor, setMyTeamColor] = useState("#1a1a1a");
+  /** Summon ink only decreases on SUMMON - not from battle sim (moves/abilities). */
+  const battleInkInitializedRef = useRef(false);
+  const lastDeductedInkRef = useRef(0);
   const [summonHistory, setSummonHistory] = useState<Array<{
     imageData: string;
     inkCost: number;
@@ -274,6 +280,8 @@ export default function BattleWrapper({
 
       // Send to server with ink cost
       room.send("summonFighter", { config, spriteData, inkCost: inkSpent });
+      lastDeductedInkRef.current = inkSpent;
+      setMyInk(prev => Math.max(0, prev - inkSpent));
     } catch (error) {
       console.error("Failed to summon fighter:", error);
       alert("Failed to summon fighter. Please try again.");
@@ -292,6 +300,8 @@ export default function BattleWrapper({
       spriteData: summon.spriteData,
       inkCost: summon.inkCost
     });
+    lastDeductedInkRef.current = summon.inkCost;
+    setMyInk(prev => Math.max(0, prev - summon.inkCost));
   }, [room, summonHistory, myInk]);
 
   const extractSprite = async (imageData: string, bounds: { x: number; y: number; width: number; height: number }): Promise<string> => {
@@ -537,14 +547,29 @@ export default function BattleWrapper({
   }, [attackCooldownUntil]);
 
   // Track player's ink and team color
+  // Ink for SUMMON display: only init from server when battle starts, then only decrease on summon
+  // (server's player.ink changes every tick from battle sim moves/abilities - we ignore that)
   useEffect(() => {
     const updatePlayerData = () => {
+      const state = room.state as Record<string, unknown>;
+      const phase = state.phase as string;
       const { players } = parseRoomState(room);
       const myPlayer = players.get(mySessionId);
-      if (myPlayer) {
-        setMyInk(myPlayer.ink);
-        setMyTeamColor(myPlayer.teamColor || "#1a1a1a");
+      if (!myPlayer) return;
+
+      setMyTeamColor(myPlayer.teamColor || "#1a1a1a");
+
+      if (phase !== "battle") {
+        battleInkInitializedRef.current = false;
+        return;
       }
+
+      // Only sync ink from server when first entering battle (initial summon budget)
+      if (!battleInkInitializedRef.current) {
+        setMyInk(myPlayer.ink);
+        battleInkInitializedRef.current = true;
+      }
+      // Otherwise: myInk only changes when user summons (handled in handleSummonSubmit / handleRespawnFromHistory)
     };
 
     updatePlayerData();
@@ -554,6 +579,24 @@ export default function BattleWrapper({
       room.onStateChange.clear();
     };
   }, [room, mySessionId]);
+
+  // Revert ink deduction if server rejects summon (e.g. not enough ink race condition)
+  useEffect(() => {
+    const handler = () => {
+      const amount = lastDeductedInkRef.current;
+      if (amount > 0) {
+        setMyInk(prev => prev + amount);
+        lastDeductedInkRef.current = 0;
+      }
+    };
+    const remove = room.onMessage("summonFailed", handler);
+    return remove;
+  }, [room]);
+
+  // Notify parent of summon ink changes (for InkBar above battle)
+  useEffect(() => {
+    onSummonInkChange?.(myInk);
+  }, [myInk, onSummonInkChange]);
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">

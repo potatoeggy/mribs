@@ -107,6 +107,8 @@ export default function GameRoomPage() {
   const battleStartSpokenRef = useRef(false);
   const [drawingRoundKey, setDrawingRoundKey] = useState(0);
   const [battleCountdown, setBattleCountdown] = useState(0);
+  /** Summon ink from BattleWrapper (only changes on summon, not battle sim) */
+  const [mySummonInk, setMySummonInk] = useState<number | null>(null);
   const RESULT_DELAY_MS = 1700;
   const BATTLE_COUNTDOWN_SEC = 6;
 
@@ -265,6 +267,13 @@ export default function GameRoomPage() {
   useEffect(() => {
     if (phase === "drawing") {
       setOpponentStrokes([]);
+    }
+  }, [phase]);
+
+  // Reset summon ink display when leaving battle (BattleWrapper will re-report when re-entering)
+  useEffect(() => {
+    if (phase !== "battle" && phase !== "result") {
+      setMySummonInk(null);
     }
   }, [phase]);
 
@@ -681,7 +690,7 @@ export default function GameRoomPage() {
             <div className="flex items-start justify-between gap-4 px-4 flex-wrap">
               <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
               <InkBar
-                ink={myPlayer?.ink || 0}
+                ink={mySummonInk ?? myPlayer?.ink ?? 0}
                 maxInk={myPlayer?.maxInk || 6000}
                 name={myPlayer?.fighterName || "You"}
                 side="left"
@@ -708,6 +717,7 @@ export default function GameRoomPage() {
               gestureMoves={phase === "battle" ? (myFighterConfig?.gestureMoves ?? []) : []}
               onCommentary={(!COMMENTATOR_HOST_ONLY || code === "new") ? (line) => commentatorRef.current?.speak(line) : undefined}
               battleCountdownRemaining={battleCountdown}
+              onSummonInkChange={setMySummonInk}
             />
 
             {/* Legacy Ability HUD (hidden when using gesture moves) */}
