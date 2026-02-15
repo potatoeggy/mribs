@@ -142,8 +142,8 @@ export default function BattleWrapper({
   const onCommentaryRef = useRef(onCommentary);
   onCommentaryRef.current = onCommentary;
   const COMMENTARY_COOLDOWN_MS = 900;
-  /** Set false for instant commentary (preset only); true for AI-generated variety (adds ~300-600ms). */
-  const USE_AI_COMMENTARY = false;
+  /** AI-generated commentary = fun & varied. Preset = boring repeats. */
+  const USE_AI_COMMENTARY = true;
   roomRef.current = room;
 
   // Summon modal state
@@ -190,7 +190,7 @@ export default function BattleWrapper({
               body: JSON.stringify(context),
             }),
             new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("timeout")), 300),
+              setTimeout(() => reject(new Error("timeout")), 600),
             ),
           ]);
           if (res.ok) {
@@ -366,8 +366,9 @@ export default function BattleWrapper({
           (events: Array<Record<string, unknown>>) => {
             if (!scene) return;
             const { players } = parseRoomState(currentRoom);
+            const summoned = getCurrentSummonedFighters();
             const getName = (id: string) =>
-              players.get(id)?.fighterName || "Fighter";
+              players.get(id)?.fighterName ?? summoned.get(id)?.name ?? "Fighter";
 
             for (const event of events) {
               if (event.type === "meleeHit") {
@@ -416,13 +417,21 @@ export default function BattleWrapper({
                   (event.y as number) || 300,
                   (event.amount as number) || 0,
                 );
+                const attackerId = event.playerId as string | undefined;
                 const targetId = event.targetId as string | undefined;
                 const amount = (event.amount as number) || 0;
                 if (onCommentaryRef.current && targetId && amount > 0) {
-                  const name = getName(targetId);
+                  const attackerName = attackerId ? getName(attackerId) : undefined;
+                  const targetName = getName(targetId);
                   maybeCommentary(
-                    { eventType: "damage", targetName: name, amount },
-                    pick(COMMENTARY_LINES.damage)(name, amount),
+                    {
+                      eventType: "damage",
+                      attackerName,
+                      targetName,
+                      action: "ranged hit",
+                      amount,
+                    },
+                    pick(COMMENTARY_LINES.damage)(targetName, amount),
                   );
                 }
               }

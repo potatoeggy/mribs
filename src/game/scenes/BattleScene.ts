@@ -22,19 +22,27 @@ interface ProjectileDisplay {
 }
 
 interface BattleState {
-  players: Map<string, {
-    x: number;
-    y: number;
-    hp: number;
-    maxHp: number;
-    ink: number;
-    maxInk: number;
-    facingRight: boolean;
-    isShielding: boolean;
-    fighterName: string;
-    teamColor?: string;
-    abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
-  }>;
+  players: Map<
+    string,
+    {
+      x: number;
+      y: number;
+      hp: number;
+      maxHp: number;
+      ink: number;
+      maxInk: number;
+      facingRight: boolean;
+      isShielding: boolean;
+      fighterName: string;
+      teamColor?: string;
+      abilities: {
+        abilityType: string;
+        cooldownRemaining: number;
+        cooldownMax: number;
+        label: string;
+      }[];
+    }
+  >;
   projectiles: { id: string; x: number; y: number; ownerId: string }[];
 }
 
@@ -91,9 +99,15 @@ export class BattleScene extends Phaser.Scene {
         // Punchy melee hit - swoosh + impact
         oscillator.type = "sawtooth";
         oscillator.frequency.setValueAtTime(400, context.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(150, context.currentTime + 0.08);
+        oscillator.frequency.exponentialRampToValueAtTime(
+          150,
+          context.currentTime + 0.08,
+        );
         gainNode.gain.setValueAtTime(volume * 0.8, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.12);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.12,
+        );
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.12);
         break;
@@ -102,9 +116,15 @@ export class BattleScene extends Phaser.Scene {
         // Whoosh sound for projectile launch
         oscillator.type = "sine";
         oscillator.frequency.setValueAtTime(600, context.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(300, context.currentTime + 0.15);
+        oscillator.frequency.exponentialRampToValueAtTime(
+          300,
+          context.currentTime + 0.15,
+        );
         gainNode.gain.setValueAtTime(volume * 0.5, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.15);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.15,
+        );
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.15);
         break;
@@ -114,7 +134,10 @@ export class BattleScene extends Phaser.Scene {
         oscillator.type = "triangle";
         oscillator.frequency.value = 180;
         gainNode.gain.setValueAtTime(volume, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.1);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.1,
+        );
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.1);
         break;
@@ -123,9 +146,15 @@ export class BattleScene extends Phaser.Scene {
         // Dramatic death sound - descending tone
         oscillator.type = "square";
         oscillator.frequency.setValueAtTime(400, context.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(50, context.currentTime + 0.5);
+        oscillator.frequency.exponentialRampToValueAtTime(
+          50,
+          context.currentTime + 0.5,
+        );
         gainNode.gain.setValueAtTime(volume * 0.6, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.5);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.5,
+        );
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.5);
         break;
@@ -134,7 +163,10 @@ export class BattleScene extends Phaser.Scene {
         // Magical sparkle sound
         oscillator.type = "sine";
         oscillator.frequency.setValueAtTime(800, context.currentTime);
-        oscillator.frequency.linearRampToValueAtTime(1200, context.currentTime + 0.3);
+        oscillator.frequency.linearRampToValueAtTime(
+          1200,
+          context.currentTime + 0.3,
+        );
         gainNode.gain.setValueAtTime(volume * 0.4, context.currentTime);
         gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.3);
         oscillator.start(context.currentTime);
@@ -146,7 +178,10 @@ export class BattleScene extends Phaser.Scene {
         oscillator.type = "sine";
         oscillator.frequency.value = 800;
         gainNode.gain.setValueAtTime(volume * 0.5, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.2);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.2,
+        );
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.2);
         break;
@@ -156,7 +191,10 @@ export class BattleScene extends Phaser.Scene {
         oscillator.type = "square";
         oscillator.frequency.value = 250;
         gainNode.gain.setValueAtTime(volume * 0.7, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.08);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.08,
+        );
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.08);
         break;
@@ -167,7 +205,8 @@ export class BattleScene extends Phaser.Scene {
     const now = this.time.now;
     for (const [, fighter] of this.fighters) {
       const sprite = fighter.sprite;
-      const skipLerp = fighter.ignoreLerpUntil != null && now < fighter.ignoreLerpUntil;
+      const skipLerp =
+        fighter.ignoreLerpUntil != null && now < fighter.ignoreLerpUntil;
       if (!skipLerp) {
         const lerpFactor = 0.3;
         sprite.x += (fighter.targetX - sprite.x) * lerpFactor;
@@ -208,7 +247,8 @@ export class BattleScene extends Phaser.Scene {
           sprite.y += bounceY;
         } else {
           // Idle breathing animation
-          const breatheScale = 1 + Math.sin(now * 0.003 + sprite.x * 0.01) * 0.04;
+          const breatheScale =
+            1 + Math.sin(now * 0.003 + sprite.x * 0.01) * 0.04;
           const breatheY = Math.sin(now * 0.002 + sprite.x * 0.01) * 1.5;
           sprite.setScale(breatheScale, breatheScale);
           sprite.y += breatheY;
@@ -236,7 +276,13 @@ export class BattleScene extends Phaser.Scene {
             body.setVelocity(0, 0);
             body.setGravityY(0);
           }
-          const hit = this.add.circle(fd.sprite.x, fd.sprite.y, 15, 0xe74c3c, 0.4);
+          const hit = this.add.circle(
+            fd.sprite.x,
+            fd.sprite.y,
+            15,
+            0xe74c3c,
+            0.4,
+          );
           hit.setDepth(30);
           this.tweens.add({
             targets: hit,
@@ -254,7 +300,8 @@ export class BattleScene extends Phaser.Scene {
             ease: "Quad.easeIn",
             onComplete: () => {
               fd.sprite.destroy();
-              if (this.textures.exists(fd.textureKey)) this.textures.remove(fd.textureKey);
+              if (this.textures.exists(fd.textureKey))
+                this.textures.remove(fd.textureKey);
               this.fallingDrawings.splice(i, 1);
             },
           });
@@ -268,7 +315,8 @@ export class BattleScene extends Phaser.Scene {
           duration: 600,
           onComplete: () => {
             fd.sprite.destroy();
-            if (this.textures.exists(fd.textureKey)) this.textures.remove(fd.textureKey);
+            if (this.textures.exists(fd.textureKey))
+              this.textures.remove(fd.textureKey);
             const idx = this.fallingDrawings.indexOf(fd);
             if (idx !== -1) this.fallingDrawings.splice(idx, 1);
           },
@@ -277,23 +325,33 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  updateState(state: BattleState, summonedFighters?: Map<string, {
-    id: string;
-    name: string;
-    x: number;
-    y: number;
-    hp: number;
-    maxHp: number;
-    facingRight: boolean;
-    spriteData: string;
-    teamColor: string;
-  }>): void {
+  updateState(
+    state: BattleState,
+    summonedFighters?: Map<
+      string,
+      {
+        id: string;
+        name: string;
+        x: number;
+        y: number;
+        hp: number;
+        maxHp: number;
+        facingRight: boolean;
+        spriteData: string;
+        teamColor: string;
+      }
+    >,
+  ): void {
     // Update main players
     state.players.forEach((data, id) => {
       let fighter = this.fighters.get(id);
 
       if (!fighter) {
-        fighter = this.createFighterDisplay(id, data.fighterName, data.teamColor || "#1a1a1a");
+        fighter = this.createFighterDisplay(
+          id,
+          data.fighterName,
+          data.teamColor || "#1a1a1a",
+        );
         this.fighters.set(id, fighter);
         // Animate character spawn
         this.animateCharacterSpawn(id);
@@ -310,12 +368,20 @@ export class BattleScene extends Phaser.Scene {
       // Use team color for HP bar instead of health-based colors
       const hpFraction = Math.max(0, data.hp / data.maxHp);
       fighter.hpBarFill.width = 48 * hpFraction;
-      const teamColorInt = Phaser.Display.Color.HexStringToColor(fighter.teamColor).color;
+      const teamColorInt = Phaser.Display.Color.HexStringToColor(
+        fighter.teamColor,
+      ).color;
       fighter.hpBarFill.fillColor = teamColorInt;
 
       if (data.isShielding) {
         if (!fighter.shieldGraphic) {
-          fighter.shieldGraphic = this.add.circle(data.x, data.y, 40, teamColorInt, 0.25);
+          fighter.shieldGraphic = this.add.circle(
+            data.x,
+            data.y,
+            40,
+            teamColorInt,
+            0.25,
+          );
           fighter.shieldGraphic.setStrokeStyle(2, teamColorInt, 0.6);
           fighter.shieldGraphic.setDepth(5);
         }
@@ -351,14 +417,19 @@ export class BattleScene extends Phaser.Scene {
 
         const hpFraction = Math.max(0, data.hp / data.maxHp);
         fighter.hpBarFill.width = 48 * hpFraction;
-        const teamColorInt = Phaser.Display.Color.HexStringToColor(fighter.teamColor).color;
+        const teamColorInt = Phaser.Display.Color.HexStringToColor(
+          fighter.teamColor,
+        ).color;
         fighter.hpBarFill.fillColor = teamColorInt;
       });
     }
 
     // Remove fighters that no longer exist
     for (const [id] of this.fighters) {
-      if (!state.players.has(id) && !(summonedFighters && summonedFighters.has(id))) {
+      if (
+        !state.players.has(id) &&
+        !(summonedFighters && summonedFighters.has(id))
+      ) {
         this.removeFighter(id);
       }
     }
@@ -387,7 +458,13 @@ export class BattleScene extends Phaser.Scene {
 
         const trail: Phaser.GameObjects.Arc[] = [];
         for (let i = 0; i < 5; i++) {
-          const trailPart = this.add.circle(proj.x, proj.y, 6 - i, colorInt, 0.5 - i * 0.08);
+          const trailPart = this.add.circle(
+            proj.x,
+            proj.y,
+            6 - i,
+            colorInt,
+            0.5 - i * 0.08,
+          );
           trailPart.setDepth(9);
           trail.push(trailPart);
         }
@@ -422,7 +499,10 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** Set sprite display size preserving aspect ratio, fitting within maxSize (no cropping). */
-  private setSpriteDisplaySizePreserveAspect(sprite: Phaser.GameObjects.Image, maxSize: number): void {
+  private setSpriteDisplaySizePreserveAspect(
+    sprite: Phaser.GameObjects.Image,
+    maxSize: number,
+  ): void {
     const frame = sprite.frame;
     const w = frame?.width ?? 1;
     const h = frame?.height ?? 1;
@@ -451,7 +531,11 @@ export class BattleScene extends Phaser.Scene {
         const fighter = this.fighters.get(playerId);
         if (fighter) {
           const oldSprite = fighter.sprite;
-          const newSprite = this.add.image(oldSprite.x, oldSprite.y, textureKey);
+          const newSprite = this.add.image(
+            oldSprite.x,
+            oldSprite.y,
+            textureKey,
+          );
           this.setSpriteDisplaySizePreserveAspect(newSprite, 120);
           newSprite.setDepth(3);
           oldSprite.destroy();
@@ -553,7 +637,14 @@ export class BattleScene extends Phaser.Scene {
               ghost.setDepth(49);
             } else {
               // For Rectangle, create a rectangle ghost
-              ghost = this.add.rectangle(sprite.x, sprite.y, 50, 60, 0xff0000, 0.3);
+              ghost = this.add.rectangle(
+                sprite.x,
+                sprite.y,
+                50,
+                60,
+                0xff0000,
+                0.3,
+              );
               ghost.setScale(sprite.scaleX, sprite.scaleY);
               ghost.setRotation(sprite.rotation);
               ghost.setDepth(49);
@@ -571,10 +662,23 @@ export class BattleScene extends Phaser.Scene {
       },
     });
 
-    const flash = this.add.rectangle(ARENA_WIDTH / 2, ARENA_HEIGHT / 2, ARENA_WIDTH * 2, ARENA_HEIGHT * 2, 0xffffff, 0);
+    const flash = this.add.rectangle(
+      ARENA_WIDTH / 2,
+      ARENA_HEIGHT / 2,
+      ARENA_WIDTH * 2,
+      ARENA_HEIGHT * 2,
+      0xffffff,
+      0,
+    );
     flash.setDepth(55);
     this.tweens.add({ targets: flash, alpha: 0.4, duration: 80 });
-    this.tweens.add({ targets: flash, alpha: 0, duration: 250, delay: 100, onComplete: () => flash.destroy() });
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 250,
+      delay: 100,
+      onComplete: () => flash.destroy(),
+    });
 
     const koText = this.add.text(ARENA_WIDTH / 2, 130, "K.O.", {
       fontFamily: '"Caveat", cursive',
@@ -586,7 +690,7 @@ export class BattleScene extends Phaser.Scene {
     koText.setDepth(60);
     koText.setAlpha(0);
     koText.setScale(0.1);
-    koText.setStroke("#e74c3c", 8);
+    koText.setStroke(fighter.teamColor, 8);
     this.time.delayedCall(80, () => {
       this.tweens.add({
         targets: koText,
@@ -607,208 +711,11 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
-  playGestureAttackVisual(data: {
-    playerId: string;
-    targetId: string;
-    gesture: string;
-    action: string;
-    power: number;
-    drawingData?: string;
-  }): void {
-    const attacker = this.fighters.get(data.playerId);
-    const target = this.fighters.get(data.targetId);
-    if (!attacker || !target) return;
-
-    if (data.gesture === "tap") {
-      this.playTapAttack(attacker, target, data.action);
-    } else if (data.gesture === "swipe") {
-      this.playSwipeAttack(attacker, target, data.action);
-    } else if (data.gesture === "draw") {
-      this.playDrawAttack(data.playerId, target, data.drawingData);
-    }
-  }
-
-  private playTapAttack(attacker: FighterDisplay, target: FighterDisplay, _action: string): void {
-    const sprite = attacker.sprite;
-    const hitX = target.targetX + (target.targetX > ARENA_WIDTH / 2 ? -35 : 35);
-    const hitY = target.targetY;
-    const returnX = attacker.targetX;
-    const returnY = attacker.targetY;
-
-    attacker.ignoreLerpUntil = this.time.now + 350;
-
-    // Lunge (position only – no scale change so the fighter never grows)
-    this.tweens.add({
-      targets: sprite,
-      x: hitX,
-      y: hitY,
-      duration: 120,
-      ease: "Cubic.Out",
-      onComplete: () => {
-        const impact = this.add.circle(hitX, hitY, 8, 0xe74c3c, 0.8);
-        impact.setStrokeStyle(3, 0x1a1a1a);
-        impact.setDepth(20);
-        this.tweens.add({
-          targets: impact,
-          scale: 2,
-          alpha: 0,
-          duration: 300,
-          onComplete: () => impact.destroy(),
-        });
-      },
-    });
-
-    this.time.delayedCall(120, () => {
-      this.tweens.add({
-        targets: sprite,
-        x: returnX,
-        y: returnY,
-        duration: 200,
-        ease: "Cubic.InOut",
-      });
-    });
-  }
-
-  private playSwipeAttack(attacker: FighterDisplay, target: FighterDisplay, _action: string): void {
-    const sprite = attacker.sprite;
-    const fromX = sprite.x;
-    const fromY = sprite.y;
-    const returnX = attacker.targetX;
-    const returnY = attacker.targetY;
-    const toX = target.targetX;
-    const toY = target.targetY;
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const ux = dx / len;
-    const uy = dy / len;
-
-    // Overshoot past the target by 40px
-    const pastX = toX + ux * 40;
-    const pastY = toY + uy * 40;
-
-    attacker.ignoreLerpUntil = this.time.now + 500;
-
-    // Spawn afterimage trail during the dash using the fighter's actual sprite
-    const trailCount = 4;
-    for (let i = 0; i < trailCount; i++) {
-      this.time.delayedCall(i * 25, () => {
-        const t = (i + 1) / (trailCount + 1);
-        const trailX = fromX + (pastX - fromX) * t;
-        const trailY = fromY + (pastY - fromY) * t;
-        let ghost: Phaser.GameObjects.GameObject & { setDepth: (d: number) => void };
-        if (sprite instanceof Phaser.GameObjects.Image) {
-          const img = this.add.image(trailX, trailY, sprite.texture.key);
-          img.setDisplaySize(sprite.displayWidth, sprite.displayHeight);
-          img.setAlpha(0.35);
-          img.setFlipX(sprite.flipX);
-          ghost = img;
-        } else {
-          const rect = this.add.rectangle(trailX, trailY, 50, 60, 0x1a1a1a, 0.3);
-          ghost = rect;
-        }
-        ghost.setDepth(2);
-        this.tweens.add({
-          targets: ghost,
-          alpha: 0,
-          scaleX: 0.6,
-          scaleY: 0.6,
-          duration: 200,
-          ease: "Quad.Out",
-          onComplete: () => (ghost as Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle).destroy(),
-        });
-      });
-    }
-
-    // Dash through the opponent and past them
-    this.tweens.add({
-      targets: sprite,
-      x: pastX,
-      y: pastY,
-      duration: 120,
-      ease: "Cubic.Out",
-      onComplete: () => {
-        // Snap back to original position with bounce
-        this.time.delayedCall(80, () => {
-          this.tweens.add({
-            targets: sprite,
-            x: returnX,
-            y: returnY,
-            duration: 220,
-            ease: "Back.easeOut",
-          });
-        });
-      },
-    });
-  }
-
-  private playDrawAttack(_ownerId: string, target: FighterDisplay, drawingData?: string): void {
-    const spawnX = target.targetX;
-    const spawnY = target.targetY - 260;
-
-    const spawnFallingDrawing = (textureKey: string) => {
-      if (!this.textures.exists(textureKey)) return;
-      const drawSprite = this.add.image(spawnX, spawnY, textureKey);
-      this.setSpriteDisplaySizePreserveAspect(drawSprite, 120);
-      drawSprite.setDepth(18);
-
-      this.physics.add.existing(drawSprite, false);
-      const body = drawSprite.body as Phaser.Physics.Arcade.Body;
-      body.setGravityY(450);
-      body.setCollideWorldBounds(true);
-      body.setSize(drawSprite.displayWidth * 0.85, drawSprite.displayHeight * 0.85);
-
-      this.fallingDrawings.push({
-        sprite: drawSprite,
-        targetId: target.id,
-        textureKey,
-        hit: false,
-      });
-
-      this.time.delayedCall(2200, () => {
-        const fd = this.fallingDrawings.find((f) => f.sprite === drawSprite);
-        if (fd && !fd.hit) {
-          fd.hit = true;
-          body.setVelocity(0, 0);
-          body.setGravityY(0);
-          this.tweens.add({
-            targets: drawSprite,
-            alpha: 0,
-            duration: 1000,
-            onComplete: () => {
-              drawSprite.destroy();
-              if (this.textures.exists(textureKey)) this.textures.remove(textureKey);
-              const idx = this.fallingDrawings.indexOf(fd);
-              if (idx !== -1) this.fallingDrawings.splice(idx, 1);
-            },
-          });
-        }
-      });
-    };
-
-    if (drawingData && drawingData.length > 100) {
-      const key = `drawAttack_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-      const img = new Image();
-      img.onload = () => {
-        try {
-          if (!this.sys?.game?.renderer) return;
-          if (this.textures.exists(key)) this.textures.remove(key);
-          this.textures.addImage(key, img);
-          spawnFallingDrawing(key);
-        } catch {
-          this.spawnFallbackDrawAttack(spawnX, spawnY, target.id);
-        }
-      };
-      img.onerror = () => {
-        this.spawnFallbackDrawAttack(spawnX, spawnY, target.id);
-      };
-      img.src = drawingData.startsWith("data:") ? drawingData : `data:image/png;base64,${drawingData}`;
-    } else {
-      this.spawnFallbackDrawAttack(spawnX, spawnY, target.id);
-    }
-  }
-
-  private spawnFallbackDrawAttack(spawnX: number, spawnY: number, targetId: string): void {
+  private spawnFallbackDrawAttack(
+    spawnX: number,
+    spawnY: number,
+    targetId: string,
+  ): void {
     const key = `drawFallback_${Date.now()}`;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
     g.fillStyle(0x1a1a1a, 1);
@@ -882,8 +789,18 @@ export class BattleScene extends Phaser.Scene {
     g.fillRect(0, GROUND_Y + 5, ARENA_WIDTH, ARENA_HEIGHT - GROUND_Y);
   }
 
-  private createFighterDisplay(id: string, name: string, teamColor: string): FighterDisplay {
-    const sprite = this.add.rectangle(ARENA_WIDTH / 2, GROUND_Y, 50, 60, 0x333333);
+  private createFighterDisplay(
+    id: string,
+    name: string,
+    teamColor: string,
+  ): FighterDisplay {
+    const sprite = this.add.rectangle(
+      ARENA_WIDTH / 2,
+      GROUND_Y,
+      50,
+      60,
+      0x333333,
+    );
     sprite.setDepth(3);
 
     const nameText = this.add.text(sprite.x, sprite.y - 55, name || "???", {
@@ -894,13 +811,25 @@ export class BattleScene extends Phaser.Scene {
     nameText.setOrigin(0.5);
     nameText.setDepth(4);
 
-    const hpBarBg = this.add.rectangle(sprite.x, sprite.y - 42, 50, 8, 0xcccccc);
+    const hpBarBg = this.add.rectangle(
+      sprite.x,
+      sprite.y - 42,
+      50,
+      8,
+      0xcccccc,
+    );
     hpBarBg.setStrokeStyle(1, 0x666666);
     hpBarBg.setDepth(4);
 
     // Start with team color for HP bar
     const teamColorInt = Phaser.Display.Color.HexStringToColor(teamColor).color;
-    const hpBarFill = this.add.rectangle(sprite.x - 24, sprite.y - 42, 48, 6, teamColorInt);
+    const hpBarFill = this.add.rectangle(
+      sprite.x - 24,
+      sprite.y - 42,
+      48,
+      6,
+      teamColorInt,
+    );
     hpBarFill.setOrigin(0, 0.5);
     hpBarFill.setDepth(5);
 
@@ -922,7 +851,11 @@ export class BattleScene extends Phaser.Scene {
     // Only apply team color to placeholder rectangles before sprite loads
     if (fighter.sprite instanceof Phaser.GameObjects.Rectangle) {
       const color = Phaser.Display.Color.HexStringToColor(fighter.teamColor);
-      const fillColor = Phaser.Display.Color.GetColor(color.red, color.green, color.blue);
+      const fillColor = Phaser.Display.Color.GetColor(
+        color.red,
+        color.green,
+        color.blue,
+      );
       fighter.sprite.setFillStyle(fillColor);
     }
   }
@@ -974,7 +907,7 @@ export class BattleScene extends Phaser.Scene {
           y: lungeY,
           scaleX: 1.3,
           scaleY: 0.8,
-          rotation: (toX > fromX ? 0.15 : -0.15),
+          rotation: toX > fromX ? 0.15 : -0.15,
           duration: 80,
           ease: "Cubic.Out",
           onComplete: () => {
@@ -994,7 +927,13 @@ export class BattleScene extends Phaser.Scene {
             // Particle burst
             for (let i = 0; i < 8; i++) {
               const angle = (i / 8) * Math.PI * 2;
-              const particle = this.add.circle(lungeX, lungeY, 3, 0xff6b6b, 0.8);
+              const particle = this.add.circle(
+                lungeX,
+                lungeY,
+                3,
+                0xff6b6b,
+                0.8,
+              );
               particle.setDepth(19);
               this.tweens.add({
                 targets: particle,
@@ -1118,9 +1057,12 @@ export class BattleScene extends Phaser.Scene {
     });
 
     // Charge-up effect in attacker's team color
-    const chargeX = attacker.sprite.x + (attacker.sprite.x < ARENA_WIDTH / 2 ? 30 : -30);
+    const chargeX =
+      attacker.sprite.x + (attacker.sprite.x < ARENA_WIDTH / 2 ? 30 : -30);
     const chargeY = attacker.sprite.y - 10;
-    const teamColorInt = Phaser.Display.Color.HexStringToColor(attacker.teamColor).color;
+    const teamColorInt = Phaser.Display.Color.HexStringToColor(
+      attacker.teamColor,
+    ).color;
 
     const charge = this.add.circle(chargeX, chargeY, 8, teamColorInt, 0.6);
     charge.setStrokeStyle(2, 0xffffff, 0.8);
@@ -1272,7 +1214,7 @@ export class BattleScene extends Phaser.Scene {
           sprite.y + Math.sin(angle) * radius,
           4,
           0xffd700,
-          0.9
+          0.9,
         );
         star.setDepth(30);
 
