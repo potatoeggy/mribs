@@ -15,6 +15,11 @@ interface FighterDisplay {
   ignoreLerpUntil?: number;
 }
 
+interface PlatformDisplay {
+  graphic: Phaser.GameObjects.Rectangle;
+  arrow?: Phaser.GameObjects.Triangle;
+}
+
 interface ProjectileDisplay {
   id: string;
   graphic: Phaser.GameObjects.Arc;
@@ -58,6 +63,7 @@ export class BattleScene extends Phaser.Scene {
   private projectileDisplays: Map<string, ProjectileDisplay> = new Map();
   private fallingDrawings: FallingDrawing[] = [];
   private sounds: { [key: string]: Phaser.Sound.BaseSound } = {};
+  private platforms: PlatformDisplay[] = [];
 
   constructor() {
     super({ key: "BattleScene" });
@@ -72,8 +78,62 @@ export class BattleScene extends Phaser.Scene {
   create(): void {
     this.drawArenaBackground();
 
+    // Create platforms
+    this.createPlatforms();
+
     // Create procedural sound effects using Web Audio
     this.createProceduralSounds();
+  }
+
+  private createPlatforms(): void {
+    // Platform configs matching server-side PLATFORMS
+    const platformConfigs = [
+      { x: 200, y: 300, width: 150, height: 20, pattern: "horizontal" },
+      { x: 500, y: 250, width: 120, height: 20, pattern: "vertical" },
+      { x: 400, y: 350, width: 100, height: 20, pattern: "static" },
+    ];
+
+    for (const config of platformConfigs) {
+      // Create gradient platform
+      const platform = this.add.rectangle(
+        config.x,
+        config.y,
+        config.width,
+        config.height,
+        0x8b7355,
+        0.9
+      );
+      platform.setStrokeStyle(2, 0x5d4e3a);
+      platform.setDepth(1);
+
+      // Add movement direction arrow for moving platforms
+      let arrow: Phaser.GameObjects.Triangle | undefined;
+      if (config.pattern === "horizontal") {
+        arrow = this.add.triangle(
+          config.x + config.width / 2 - 10,
+          config.y,
+          0, -8,
+          8, 0,
+          0, 8,
+          0x5d4e3a,
+          0.6
+        );
+        arrow.setDepth(2);
+      } else if (config.pattern === "vertical") {
+        arrow = this.add.triangle(
+          config.x,
+          config.y - config.height / 2 + 10,
+          -8, 0,
+          0, -8,
+          8, 0,
+          0x5d4e3a,
+          0.6
+        );
+        arrow.setDepth(2);
+      }
+
+      this.platforms.push({ graphic: platform, arrow });
+    }
   }
 
   private createProceduralSounds(): void {
@@ -197,6 +257,133 @@ export class BattleScene extends Phaser.Scene {
         );
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.08);
+        break;
+
+      case "dash":
+        // Whoosh with doppler effect
+        oscillator.type = "sawtooth";
+        oscillator.frequency.setValueAtTime(800, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(
+          200,
+          context.currentTime + 0.2,
+        );
+        gainNode.gain.setValueAtTime(volume * 0.6, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.2,
+        );
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.2);
+        break;
+
+      case "chargeStart":
+        // Building tension sound
+        oscillator.type = "triangle";
+        oscillator.frequency.setValueAtTime(150, context.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(
+          400,
+          context.currentTime + 0.8,
+        );
+        gainNode.gain.setValueAtTime(volume * 0.5, context.currentTime);
+        gainNode.gain.linearRampToValueAtTime(
+          volume * 0.7,
+          context.currentTime + 0.8,
+        );
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.8);
+        break;
+
+      case "chargeHit":
+        // Deep boom
+        oscillator.type = "sawtooth";
+        oscillator.frequency.setValueAtTime(80, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(
+          20,
+          context.currentTime + 0.3,
+        );
+        gainNode.gain.setValueAtTime(volume * 0.9, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.3,
+        );
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.3);
+        break;
+
+      case "aoeExplosion":
+        // Multi-frequency burst
+        const osc2 = context.createOscillator();
+        const osc3 = context.createOscillator();
+        const gain2 = context.createGain();
+        const gain3 = context.createGain();
+
+        osc2.connect(gain2);
+        osc3.connect(gain3);
+        gain2.connect(context.destination);
+        gain3.connect(context.destination);
+
+        // Low frequency rumble
+        oscillator.type = "sawtooth";
+        oscillator.frequency.value = 60;
+        gainNode.gain.setValueAtTime(volume * 0.7, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.4,
+        );
+
+        // Mid frequency crack
+        osc2.type = "square";
+        osc2.frequency.value = 200;
+        gain2.gain.setValueAtTime(volume * 0.5, context.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.25,
+        );
+
+        // High frequency sizzle
+        osc3.type = "sine";
+        osc3.frequency.value = 1000;
+        gain3.gain.setValueAtTime(volume * 0.3, context.currentTime);
+        gain3.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.2,
+        );
+
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.4);
+        osc2.start(context.currentTime);
+        osc2.stop(context.currentTime + 0.25);
+        osc3.start(context.currentTime);
+        osc3.stop(context.currentTime + 0.2);
+        break;
+
+      case "special":
+        // Mystical sound with vibrato
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(500, context.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(
+          700,
+          context.currentTime + 0.3,
+        );
+
+        // Add vibrato using LFO
+        const lfo = context.createOscillator();
+        const lfoGain = context.createGain();
+        lfo.frequency.value = 6;
+        lfoGain.gain.value = 20;
+        lfo.connect(lfoGain);
+        lfoGain.connect(oscillator.frequency);
+
+        gainNode.gain.setValueAtTime(volume * 0.6, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(
+          0.01,
+          context.currentTime + 0.3,
+        );
+
+        lfo.start(context.currentTime);
+        lfo.stop(context.currentTime + 0.3);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.3);
         break;
     }
   }
@@ -341,7 +528,24 @@ export class BattleScene extends Phaser.Scene {
         teamColor: string;
       }
     >,
+    platformPositions?: Array<{ x: number; y: number }>,
   ): void {
+    // Update platform positions if provided
+    if (platformPositions) {
+      for (let i = 0; i < Math.min(platformPositions.length, this.platforms.length); i++) {
+        const pos = platformPositions[i];
+        const platform = this.platforms[i];
+
+        // Smooth platform movement
+        platform.graphic.x += (pos.x - platform.graphic.x) * 0.3;
+        platform.graphic.y += (pos.y - platform.graphic.y) * 0.3;
+
+        if (platform.arrow) {
+          platform.arrow.x = platform.graphic.x;
+          platform.arrow.y = platform.graphic.y;
+        }
+      }
+    }
     // Update main players
     state.players.forEach((data, id) => {
       let fighter = this.fighters.get(id);
@@ -1178,6 +1382,398 @@ export class BattleScene extends Phaser.Scene {
         });
       },
     });
+  }
+
+  /**
+   * Play dash effect with speed lines and motion blur
+   */
+  playDashEffect(fighterId: string, x: number, y: number): void {
+    const fighter = this.fighters.get(fighterId);
+    if (!fighter) return;
+
+    // Speed lines
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.random() - 0.5) * Math.PI;
+      const length = 30 + Math.random() * 20;
+      const line = this.add.line(
+        x,
+        y,
+        0,
+        0,
+        Math.cos(angle) * length,
+        Math.sin(angle) * length,
+        0x3498db,
+        0.6
+      );
+      line.setLineWidth(2);
+      line.setDepth(15);
+
+      this.tweens.add({
+        targets: line,
+        alpha: 0,
+        duration: 200,
+        ease: "Quad.Out",
+        onComplete: () => line.destroy(),
+      });
+    }
+
+    // Motion blur trail
+    const trail = this.add.circle(x, y, 25, 0x3498db, 0.3);
+    trail.setDepth(14);
+    this.tweens.add({
+      targets: trail,
+      scale: 2,
+      alpha: 0,
+      duration: 300,
+      ease: "Quad.Out",
+      onComplete: () => trail.destroy(),
+    });
+  }
+
+  /**
+   * Play charge attack effect with wind-up and explosion
+   */
+  playChargeEffect(
+    fighterId: string,
+    x: number,
+    y: number,
+    isStart: boolean
+  ): void {
+    const fighter = this.fighters.get(fighterId);
+    if (!fighter) return;
+
+    if (isStart) {
+      // Wind-up effect - pulsing glow
+      const glow = this.add.circle(x, y, 30, 0xff6b6b, 0.4);
+      glow.setDepth(20);
+
+      this.tweens.add({
+        targets: glow,
+        scale: 1.5,
+        alpha: 0.8,
+        duration: 400,
+        yoyo: true,
+        repeat: 2,
+        ease: "Sine.easeInOut",
+        onComplete: () => glow.destroy(),
+      });
+
+      // Energy particles gathering
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        const startDist = 60;
+        const particle = this.add.circle(
+          x + Math.cos(angle) * startDist,
+          y + Math.sin(angle) * startDist,
+          3,
+          0xff6b6b,
+          0.8
+        );
+        particle.setDepth(19);
+
+        this.tweens.add({
+          targets: particle,
+          x: x,
+          y: y,
+          duration: 800,
+          ease: "Quad.In",
+          onComplete: () => particle.destroy(),
+        });
+      }
+    } else {
+      // Impact explosion
+      const explosion = this.add.circle(x, y, 20, 0xff6b6b, 0.8);
+      explosion.setDepth(25);
+
+      this.tweens.add({
+        targets: explosion,
+        scale: 4,
+        alpha: 0,
+        duration: 400,
+        ease: "Quad.Out",
+        onComplete: () => explosion.destroy(),
+      });
+
+      // Shockwave rings
+      for (let i = 0; i < 3; i++) {
+        this.time.delayedCall(i * 80, () => {
+          const ring = this.add.circle(x, y, 25, 0xff6b6b, 0);
+          ring.setStrokeStyle(3, 0xff6b6b, 0.6);
+          ring.setDepth(24);
+
+          this.tweens.add({
+            targets: ring,
+            scale: 3,
+            alpha: 0,
+            duration: 500,
+            ease: "Quad.Out",
+            onComplete: () => ring.destroy(),
+          });
+        });
+      }
+
+      // Screen shake
+      this.cameras.main.shake(200, 0.01);
+    }
+  }
+
+  /**
+   * Play AOE explosion effect with expanding shockwave
+   */
+  playAOEEffect(x: number, y: number, radius: number): void {
+    // Central explosion
+    const explosion = this.add.circle(x, y, 15, 0xe74c3c, 0.9);
+    explosion.setDepth(25);
+
+    this.tweens.add({
+      targets: explosion,
+      scale: (radius / 15) * 0.8,
+      alpha: 0,
+      duration: 400,
+      ease: "Quad.Out",
+      onComplete: () => explosion.destroy(),
+    });
+
+    // Expanding shockwave
+    const shockwave = this.add.circle(x, y, 20, 0xe74c3c, 0);
+    shockwave.setStrokeStyle(4, 0xe74c3c, 0.8);
+    shockwave.setDepth(24);
+
+    this.tweens.add({
+      targets: shockwave,
+      scale: radius / 20,
+      alpha: 0,
+      duration: 500,
+      ease: "Quad.Out",
+      onComplete: () => shockwave.destroy(),
+    });
+
+    // Fire particles
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const distance = radius * 0.6;
+      const particle = this.add.circle(x, y, 4, 0xff6b6b, 0.9);
+      particle.setDepth(23);
+
+      this.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance,
+        alpha: 0,
+        duration: 400,
+        ease: "Quad.Out",
+        onComplete: () => particle.destroy(),
+      });
+    }
+
+    // Screen shake proportional to radius
+    this.cameras.main.shake(150, Math.min(0.015, radius / 5000));
+  }
+
+  /**
+   * Play special ability effect based on effect type
+   */
+  playSpecialEffect(
+    x: number,
+    y: number,
+    effectType: string,
+    targetId?: string
+  ): void {
+    const target = targetId ? this.fighters.get(targetId) : null;
+    const targetX = target?.sprite.x || x;
+    const targetY = target?.sprite.y || y;
+
+    switch (effectType) {
+      case "stun": {
+        // Lightning bolts
+        for (let i = 0; i < 5; i++) {
+          this.time.delayedCall(i * 50, () => {
+            const bolt = this.add.line(
+              targetX,
+              targetY - 40,
+              0,
+              0,
+              (Math.random() - 0.5) * 30,
+              30,
+              0xffeb3b,
+              0.9
+            );
+            bolt.setLineWidth(3);
+            bolt.setDepth(30);
+
+            this.tweens.add({
+              targets: bolt,
+              alpha: 0,
+              duration: 100,
+              onComplete: () => bolt.destroy(),
+            });
+          });
+        }
+
+        // Stun stars circling
+        for (let i = 0; i < 4; i++) {
+          const star = this.add.circle(targetX, targetY - 50, 4, 0xffeb3b, 0.9);
+          star.setDepth(30);
+          const angle = (i / 4) * Math.PI * 2;
+
+          this.tweens.add({
+            targets: star,
+            x: targetX + Math.cos(angle + this.time.now * 0.01) * 25,
+            y: targetY - 50 + Math.sin(angle + this.time.now * 0.01) * 15,
+            duration: 2000,
+            repeat: -1,
+            ease: "Linear",
+          });
+        }
+        break;
+      }
+
+      case "slow": {
+        // Blue frost effect
+        const frost = this.add.circle(targetX, targetY, 35, 0x3498db, 0.3);
+        frost.setDepth(20);
+
+        this.tweens.add({
+          targets: frost,
+          scale: 1.5,
+          alpha: 0,
+          duration: 600,
+          ease: "Quad.Out",
+          onComplete: () => frost.destroy(),
+        });
+
+        // Ice particles
+        for (let i = 0; i < 8; i++) {
+          const ice = this.add.circle(
+            targetX + (Math.random() - 0.5) * 40,
+            targetY + (Math.random() - 0.5) * 40,
+            3,
+            0x3498db,
+            0.8
+          );
+          ice.setDepth(21);
+
+          this.tweens.add({
+            targets: ice,
+            y: ice.y + 30,
+            alpha: 0,
+            duration: 800,
+            ease: "Quad.Out",
+            onComplete: () => ice.destroy(),
+          });
+        }
+        break;
+      }
+
+      case "poison": {
+        // Toxic cloud
+        const cloud = this.add.circle(targetX, targetY, 30, 0x27ae60, 0.5);
+        cloud.setDepth(20);
+
+        this.tweens.add({
+          targets: cloud,
+          scale: 2,
+          alpha: 0,
+          duration: 800,
+          ease: "Quad.Out",
+          onComplete: () => cloud.destroy(),
+        });
+
+        // Bubbles
+        for (let i = 0; i < 10; i++) {
+          this.time.delayedCall(i * 50, () => {
+            const bubble = this.add.circle(
+              targetX + (Math.random() - 0.5) * 30,
+              targetY + 20,
+              4,
+              0x27ae60,
+              0.6
+            );
+            bubble.setDepth(21);
+
+            this.tweens.add({
+              targets: bubble,
+              y: bubble.y - 40,
+              alpha: 0,
+              duration: 600,
+              ease: "Quad.Out",
+              onComplete: () => bubble.destroy(),
+            });
+          });
+        }
+        break;
+      }
+
+      case "knockback": {
+        // Force blast
+        const blast = this.add.circle(targetX, targetY, 25, 0xe74c3c, 0.7);
+        blast.setDepth(25);
+
+        this.tweens.add({
+          targets: blast,
+          scale: 2.5,
+          alpha: 0,
+          duration: 300,
+          ease: "Quad.Out",
+          onComplete: () => blast.destroy(),
+        });
+
+        this.cameras.main.shake(100, 0.008);
+        break;
+      }
+
+      case "lifesteal": {
+        // Red energy transfer
+        for (let i = 0; i < 8; i++) {
+          this.time.delayedCall(i * 30, () => {
+            const energy = this.add.circle(targetX, targetY, 4, 0xe74c3c, 0.8);
+            energy.setDepth(25);
+
+            this.tweens.add({
+              targets: energy,
+              x: x,
+              y: y,
+              alpha: 0,
+              duration: 400,
+              ease: "Quad.In",
+              onComplete: () => energy.destroy(),
+            });
+          });
+        }
+        break;
+      }
+
+      case "teleport": {
+        // Disappear effect at old position
+        const disappear = this.add.circle(x, y, 30, 0x9b59b6, 0.6);
+        disappear.setDepth(25);
+
+        this.tweens.add({
+          targets: disappear,
+          scale: 0,
+          alpha: 0,
+          duration: 200,
+          ease: "Quad.In",
+          onComplete: () => disappear.destroy(),
+        });
+
+        // Appear effect at new position
+        this.time.delayedCall(200, () => {
+          const appear = this.add.circle(targetX, targetY, 5, 0x9b59b6, 0.8);
+          appear.setDepth(25);
+
+          this.tweens.add({
+            targets: appear,
+            scale: 6,
+            alpha: 0,
+            duration: 300,
+            ease: "Quad.Out",
+            onComplete: () => appear.destroy(),
+          });
+        });
+        break;
+      }
+    }
   }
 
   /**

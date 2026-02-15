@@ -7,20 +7,41 @@ AVAILABLE COMPONENTS (pick 1-3 abilities, plus movement is always included):
 
 1. "flying" - Creature can fly
    Params: { speed: 1-5 }
-   
-2. "fireProjectile" - Ranged attack (fireball, arrow, laser, etc.)
+
+2. "ranged" - Ranged attack (fireball, arrow, laser, etc.) - PREFER THIS OVER "fireProjectile"
    Params: { damage: 5-30, cooldown: 0.5-3, speed: 2-8, label: "descriptive name", homing: true/false }
    - VARY THE SPEED: fast projectiles (speed 6-8) do less damage, slow projectiles (speed 2-4) do more damage
    - HOMING: Set homing=true for tracking projectiles (costs more ink). Homing projectiles should have lower damage or speed to balance
    - BALANCE RULE: Total "power" of a projectile = damage + (speed * 2) + (homing ? 10 : 0). Keep this under 50 for balance.
-   
+
 3. "melee" - Close-range attack (bite, slash, punch, etc.)
    Params: { damage: 5-40, range: 20-60, cooldown: 0.3-2 }
-   
-4. "shield" - Blocks incoming damage
+
+4. "meleeAOE" - Close-range area-of-effect attack (ground pound, shockwave, etc.)
+   Params: { damage: 8-25, radius: 60-120, cooldown: 2-5 }
+   - Damage scales with ink spent on drawing (more detailed = stronger)
+   - Higher cooldown than regular melee due to AOE effect
+
+5. "rangedAOE" - Explosive projectile (explosive arrow, fireball burst, etc.)
+   Params: { damage: 10-30, radius: 50-100, speed: 2-6, cooldown: 2-6, label: "descriptive name" }
+   - Explodes on impact, hitting multiple enemies
+   - Damage scales with ink spent on drawing
+
+6. "chargeAttack" - Wind-up powerful attack (charged punch, comet strike, etc.)
+   Params: { damage: 20-50, chargeTime: 0.8-1.5, cooldown: 4-8 }
+   - High damage but requires wind-up time
+   - AI auto-triggers when safe to charge
+
+7. "special" - Unique AI-generated ability with special effects
+   Params: { effectType: "stun"|"slow"|"poison"|"knockback"|"lifesteal"|"teleport", power: 10-40, duration: 1-5, cooldown: 8-15, label: "creative name" }
+   - Generate ONE special ability that fits the character theme
+   - Choose effect type based on character: aggressive → knockback/poison, sneaky → teleport/stun, vampiric → lifesteal, etc.
+   - The label should be creative and thematic (e.g., "Shadow Strike", "Venomous Bite", "Phantom Step")
+
+8. "shield" - Blocks incoming damage
    Params: { blockAmount: 10-50, duration: 1-3, cooldown: 3-8 }
-   
-5. "dash" - Quick burst of movement / dodge
+
+9. "dash" - Quick burst of movement / dodge
    Params: { distance: 50-200, cooldown: 2-5 }
 
 BALANCE RULES:
@@ -54,6 +75,7 @@ DRAWING EFFORT & INK INVESTMENT:
   - Low ink: power 5-12
   - Medium ink: power 12-18
   - High ink: power 18-25
+- AOE ABILITIES (meleeAOE, rangedAOE) have additional ink scaling: their damage increases FURTHER based on ink spent during drawing, making detailed characters especially powerful with AOE attacks
 
 GESTURE MOVES (required):
 - Return exactly 2 or 3 "gestureMoves" for battle. Each move is performed by the player doing a gesture: "tap" (quick tap), "swipe" (swipe on screen), or "draw" (draw something on battle canvas).
@@ -96,7 +118,7 @@ const FIGHTER_CONFIG_SCHEMA = {
         properties: {
           type: {
             type: "string" as const,
-            enum: ["flying", "fireProjectile", "melee", "shield", "dash"],
+            enum: ["flying", "ranged", "fireProjectile", "melee", "meleeAOE", "rangedAOE", "chargeAttack", "special", "shield", "dash"],
           },
           params: {
             type: "object" as const,
@@ -106,13 +128,17 @@ const FIGHTER_CONFIG_SCHEMA = {
               cooldown: { type: ["number", "null"] as const },
               speed: { type: ["number", "null"] as const },
               range: { type: ["number", "null"] as const },
+              radius: { type: ["number", "null"] as const },
               label: { type: ["string", "null"] as const },
               homing: { type: ["boolean", "null"] as const },
               blockAmount: { type: ["number", "null"] as const },
               duration: { type: ["number", "null"] as const },
               distance: { type: ["number", "null"] as const },
+              chargeTime: { type: ["number", "null"] as const },
+              effectType: { type: ["string", "null"] as const },
+              power: { type: ["number", "null"] as const },
             },
-            required: ["damage", "cooldown", "speed", "range", "label", "homing", "blockAmount", "duration", "distance"],
+            required: ["damage", "cooldown", "speed", "range", "radius", "label", "homing", "blockAmount", "duration", "distance", "chargeTime", "effectType", "power"],
           },
         },
         required: ["type", "params"],
