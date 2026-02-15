@@ -190,7 +190,11 @@ export default function DrawingCanvas({
   return (
     <div className="flex flex-col h-full w-full gap-2">
       <div className="flex items-center justify-between px-2 h-9">
-        <InkMeter fraction={inkRemainingFrac} label={`${inkRemaining.toFixed(0)} / ${inkBudget} ink`} />
+        <InkMeter
+          fraction={inkRemainingFrac}
+          label={`${inkRemaining.toFixed(0)} / ${inkBudget} ink`}
+          teamColor={teamColor}
+        />
         <button
           onClick={handleSubmit}
           disabled={disabled || strokes.length === 0}
