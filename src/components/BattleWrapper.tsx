@@ -306,8 +306,8 @@ export default function BattleWrapper({
 
   const extractSprite = async (imageData: string, bounds: { x: number; y: number; width: number; height: number }): Promise<string> => {
     try {
-      // Add generous padding to bounds to ensure we capture the full drawing
-      const padding = 20;
+      // Add generous padding to bounds so we never cut off any part of the drawing
+      const padding = 50;
       const paddedBounds = {
         x: Math.max(0, bounds.x - padding),
         y: Math.max(0, bounds.y - padding),
@@ -660,9 +660,9 @@ export default function BattleWrapper({
 
           {/* History sidebar */}
           {summonHistory.length > 0 && (
-            <div className="w-44 p-3 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg shrink-0">
+            <div className="w-48 p-3 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg shrink-0">
               <h4 className="font-hand text-sm font-bold text-gray-800 mb-2">History</h4>
-              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-visible">
+              <div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto overflow-x-visible">
                 {summonHistory.map((summon, index) => {
                   const canAfford = myInk >= summon.inkCost;
                   return (
@@ -673,11 +673,11 @@ export default function BattleWrapper({
                       className="p-2 bg-purple-100 hover:bg-purple-200 disabled:bg-gray-200 disabled:cursor-not-allowed border-2 border-purple-400 disabled:border-gray-300 rounded-lg transition-colors text-left min-w-0"
                       title={`${summon.config.name} - ${summon.inkCost.toFixed(0)} ink`}
                     >
-                      <div className="w-full aspect-[2/1] flex items-center justify-center bg-gray-100/50 rounded overflow-hidden mb-1">
+                      <div className="w-full min-h-[100px] flex items-center justify-center bg-gray-100/50 rounded mb-1" style={{ aspectRatio: "1" }}>
                         <img
                           src={summon.spriteData}
                           alt={summon.config.name}
-                          className="w-full h-full object-contain"
+                          className="max-w-full max-h-[120px] w-auto h-auto object-contain"
                         />
                       </div>
                       <p className="font-hand text-xs text-center mt-1 truncate">

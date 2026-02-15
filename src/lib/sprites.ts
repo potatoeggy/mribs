@@ -17,7 +17,7 @@ interface SpriteBounds {
 export function extractSprite(
   canvasDataUrl: string,
   bounds: SpriteBounds,
-  maxSize: number = 200
+  maxSize: number = 400
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -127,8 +127,8 @@ export function autoDetectBounds(canvasDataUrl: string): Promise<SpriteBounds> {
         }
       }
 
-      // Add padding
-      const padding = 10;
+      // Add generous padding so we don't cut off any drawn content
+      const padding = 30;
       resolve({
         x: Math.max(0, minX - padding),
         y: Math.max(0, minY - padding),

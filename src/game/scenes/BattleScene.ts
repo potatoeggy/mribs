@@ -417,15 +417,15 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  /** Set sprite display size preserving aspect ratio, fitting within maxSize. */
+  /** Set sprite display size preserving aspect ratio, fitting within maxSize (no cropping). */
   private setSpriteDisplaySizePreserveAspect(sprite: Phaser.GameObjects.Image, maxSize: number): void {
     const frame = sprite.frame;
     const w = frame?.width ?? 1;
     const h = frame?.height ?? 1;
-    const scale = Math.min(maxSize / w, maxSize / h, 1);
+    const scale = Math.min(maxSize / w, maxSize / h);
     const dw = Math.round(w * scale);
     const dh = Math.round(h * scale);
-    sprite.setDisplaySize(dw, dh);
+    sprite.setDisplaySize(Math.max(1, dw), Math.max(1, dh));
   }
 
   loadFighterSprite(playerId: string, spriteDataUrl: string): void {
@@ -448,7 +448,7 @@ export class BattleScene extends Phaser.Scene {
         if (fighter) {
           const oldSprite = fighter.sprite;
           const newSprite = this.add.image(oldSprite.x, oldSprite.y, textureKey);
-          this.setSpriteDisplaySizePreserveAspect(newSprite, 80);
+          this.setSpriteDisplaySizePreserveAspect(newSprite, 120);
           newSprite.setDepth(3);
           oldSprite.destroy();
           fighter.sprite = newSprite;
