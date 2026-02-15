@@ -15,6 +15,15 @@ dotenv.config();
 const port = parseInt(process.env.PORT || "2567");
 const app = express();
 
+console.log("env", {
+  PORT: process.env.PORT,
+  NODE_ENV: process.env.NODE_ENV,
+  COLYSEUS_URL: process.env.COLYSEUS_URL,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  HEYGEN_API_KEY: process.env.HEYGEN_API_KEY,
+  LIVEAVATAR_API_KEY: process.env.LIVEAVATAR_API_KEY,
+})
+
 app.use(cors());
 app.use(express.json());
 
