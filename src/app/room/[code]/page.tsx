@@ -454,7 +454,7 @@ export default function GameRoomPage() {
   }
 
   return (
-    <main className="flex flex-col min-h-screen">
+    <main className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-gray-300">
         <Link href="/" className="text-2xl font-bold text-gray-800 hover:text-gray-600">
@@ -690,7 +690,7 @@ export default function GameRoomPage() {
           </div>
             )}
             {(!COMMENTATOR_HOST_ONLY || code === "new") && (
-              <div className="flex justify-end px-4 pb-2 shrink-0">
+              <div className="fixed bottom-4 right-4 z-50">
                 <LiveCommentator
                   ref={commentatorRef}
                   avatarId={undefined}

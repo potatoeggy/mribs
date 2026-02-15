@@ -199,9 +199,9 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
 
     return (
       <div
-        className={`flex flex-col items-center gap-2 rounded-xl border-2 border-gray-300 bg-white/95 p-3 shadow-lg ${className}`}
+        className={`flex flex-col items-center gap-2 rounded-xl border-2 border-gray-300 bg-white/90 backdrop-blur-sm p-3 shadow-lg pointer-events-auto ${className}`}
       >
-        <div className="relative aspect-video w-full max-w-[280px] overflow-hidden rounded-lg bg-gray-900">
+        <div className="relative aspect-video w-full max-w-[220px] overflow-hidden rounded-lg bg-gray-900">
           <video
             ref={videoRef}
             autoPlay
