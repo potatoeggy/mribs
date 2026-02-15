@@ -23,9 +23,9 @@ AVAILABLE COMPONENTS (pick 1-3 abilities, plus movement is always included):
 BALANCE RULES:
 - Total power budget is 100 points
 - Each ability costs points roughly proportional to its power
-- More offensive abilities = lower HP (50-80)
-- More defensive abilities = higher HP (80-120)  
-- Balanced builds = medium HP (80-100)
+- More offensive abilities = lower HP (250-400)
+- More defensive abilities = higher HP (400-600)
+- Balanced builds = medium HP (400-500)
 - A creature that looks big/tough should have more HP
 - A creature that looks fast/small should have higher speed but less HP
 
@@ -38,14 +38,18 @@ SPRITE BOUNDS:
 - Identify the bounding box of the MAIN creature body (not annotations or separate attack drawings)
 - Return as { x, y, width, height } in pixel coordinates (canvas is typically ~800x500)
 
-DRAWING EFFORT & STRENGTH (use this to scale attack power):
-- Assess how much EFFORT/detail the drawing shows: low effort = very simple (stick figure, few lines, minimal detail), medium = recognizable with some features, high effort = detailed (shading, texture, multiple elements, clear expression).
-- Assess how STRONG/IMPOSING the creature looks: size, muscles, weapons, armor, fierce expression, multiple limbs, etc. vs small, cute, or fragile-looking.
-- Scale gesture move power (5-25) from this:
-  - Low effort + weak-looking: power 5-10 (reward stays low; encourage trying again with more detail).
-  - High effort + strong-looking: power 16-25 (reward good, detailed, imposing drawings).
-  - Medium effort or mixed: power 10-18.
-- Be consistent: if the drawing is clearly a quick scribble or single blob, give weaker attacks. If it's detailed and the creature looks powerful, give stronger attacks. This makes the game fair and rewarding.
+DRAWING EFFORT & INK INVESTMENT:
+- The player spent INK_SPENT ink drawing this creature (out of 200 max).
+- More ink spent = more lines drawn = more detail = STRONGER fighter
+- Scale ALL stats (HP, damage, abilities) based on ink investment:
+  - Low ink (20-60): Weak fighter - HP 250-350, damage 5-10, basic abilities
+  - Medium ink (60-120): Medium fighter - HP 350-500, damage 10-20, standard abilities
+  - High ink (120-200): Strong fighter - HP 500-750, damage 20-30, powerful abilities
+- This creates strategic trade-off: detailed/strong characters use more ink upfront, leaving less for summoning reinforcements during battle
+- Scale gesture move power (5-25) proportionally to ink spent:
+  - Low ink: power 5-12
+  - Medium ink: power 12-18
+  - High ink: power 18-25
 
 GESTURE MOVES (required):
 - Return exactly 2 or 3 "gestureMoves" for battle. Each move is performed by the player doing a gesture: "tap" (quick tap), "swipe" (swipe on screen), or "draw" (draw something on battle canvas).
@@ -144,7 +148,7 @@ const FIGHTER_CONFIG_SCHEMA = {
 /**
  * Analyze a drawing using GPT-4o Vision and return a FighterConfig.
  */
-export async function analyzeDrawing(imageBase64: string): Promise<FighterConfig> {
+export async function analyzeDrawing(imageBase64: string, inkSpent: number = 100): Promise<FighterConfig> {
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -157,14 +161,14 @@ export async function analyzeDrawing(imageBase64: string): Promise<FighterConfig
     messages: [
       {
         role: "system",
-        content: SYSTEM_PROMPT,
+        content: SYSTEM_PROMPT.replace("INK_SPENT", inkSpent.toString()),
       },
       {
         role: "user",
         content: [
           {
             type: "text",
-            text: "Analyze this hand-drawn creature for Scribble Fighters. Judge drawing effort/detail and how strong the creature looks, then set gestureMoves power (5-25) accordingly: low-effort or weak-looking = weaker attacks, detailed and imposing = stronger attacks. Return a JSON FighterConfig with abilities, sprite bounds, and gestureMoves.",
+            text: `Analyze this hand-drawn creature for Scribble Fighters. The player spent ${inkSpent} ink (out of 200 max) drawing this. Scale ALL stats (HP, damage, abilities, gesture move power) proportionally to ink investment: low ink (20-60) = weak fighter (HP 250-350), medium ink (60-120) = medium fighter (HP 350-500), high ink (120-200) = strong fighter (HP 500-750). More ink = stronger character. Return a JSON FighterConfig with abilities, sprite bounds, and gestureMoves.`,
           },
           {
             type: "image_url",
@@ -221,8 +225,8 @@ function ensureGestureMoves(config: FighterConfig): GestureMove[] {
  * Validate and fix a FighterConfig to ensure it's within bounds.
  */
 function validateAndFixConfig(config: FighterConfig): FighterConfig {
-  // Clamp health
-  config.health.maxHp = clamp(config.health.maxHp, 50, 150);
+  // Clamp health (5x multiplier for longer fights)
+  config.health.maxHp = clamp(config.health.maxHp, 250, 750);
 
   // Clamp movement
   config.movement.speed = clamp(config.movement.speed, 1, 5);
@@ -263,7 +267,7 @@ export function fallbackFighterConfig(): FighterConfig {
   return {
     name: "Scribble Warrior",
     description: "A brave scribble that fights with determination!",
-    health: { maxHp: 100 },
+    health: { maxHp: 500 },
     movement: { speed: 3, type: "walk" },
     abilities: [
       {

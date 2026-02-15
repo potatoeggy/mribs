@@ -4,18 +4,18 @@ import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Stroke, totalInkUsed, inkRemainingFraction } from "@/lib/ink";
 import InkMeter from "./InkMeter";
 
-const COLORS = ["#1a1a1a", "#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6"];
 const LINE_WIDTHS = [2, 4, 6, 10];
 const ERASER_WIDTH = 20;
 
 interface DrawingCanvasProps {
   inkBudget: number;
-  onSubmit: (imageData: string) => void;
+  onSubmit: (imageData: string, inkSpent: number) => void;
   timeRemaining: number;
   disabled?: boolean;
   onStrokeComplete?: (stroke: Stroke) => void;
   onStrokeUndo?: () => void;
   onStrokeClear?: () => void;
+  teamColor: string; // Player's team color (red or blue)
 }
 
 export default function DrawingCanvas({
@@ -26,18 +26,19 @@ export default function DrawingCanvas({
   onStrokeComplete,
   onStrokeUndo,
   onStrokeClear,
+  teamColor,
 }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [selectedColor, setSelectedColor] = useState(COLORS[0]);
   const [selectedWidth, setSelectedWidth] = useState(LINE_WIDTHS[1]);
   const [isEraser, setIsEraser] = useState(false);
   const [undoStack, setUndoStack] = useState<Stroke[][]>([]);
 
-  const inkRemaining = inkRemainingFraction(strokes, inkBudget);
   const inkUsed = totalInkUsed(strokes);
+  const inkRemaining = inkBudget - inkUsed;
+  const inkRemainingFrac = Math.max(0, inkRemaining / inkBudget);
 
   // Redraw canvas whenever strokes change
   const redrawCanvas = useCallback(() => {
@@ -123,7 +124,7 @@ export default function DrawingCanvas({
     const point = getCanvasPoint(e);
     const newStroke: Stroke = {
       points: [point],
-      color: selectedColor,
+      color: teamColor, // Use team color instead of selected color
       lineWidth: selectedWidth,
       isEraser,
     };
@@ -183,7 +184,7 @@ export default function DrawingCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const imageData = canvas.toDataURL("image/png");
-    onSubmit(imageData);
+    onSubmit(imageData, inkUsed);
   };
 
   const formatTime = (seconds: number) => {
@@ -195,7 +196,7 @@ export default function DrawingCanvas({
   return (
     <div className="flex flex-col h-full w-full gap-2">
       <div className="flex items-center justify-between px-2 h-9">
-        <InkMeter fraction={inkRemaining} />
+        <InkMeter fraction={inkRemainingFrac} label={`${inkRemaining.toFixed(0)} / ${inkBudget} ink`} />
         <button
           onClick={handleSubmit}
           disabled={disabled || strokes.length === 0}
@@ -220,22 +221,13 @@ export default function DrawingCanvas({
       </div>
 
       <div className="flex items-center justify-center gap-2 px-2 py-1 flex-wrap">
-        <div className="flex gap-1">
-          {COLORS.map((color) => (
-            <button
-              key={color}
-              onClick={() => {
-                setSelectedColor(color);
-                setIsEraser(false);
-              }}
-              className={`w-7 h-7 rounded-full border-2 transition-transform ${
-                selectedColor === color && !isEraser
-                  ? "border-gray-800 scale-125 ring-2 ring-gray-400"
-                  : "border-gray-300"
-              }`}
-              style={{ backgroundColor: color }}
-            />
-          ))}
+        {/* Team color indicator */}
+        <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg border border-gray-300">
+          <div
+            className="w-6 h-6 rounded-full border-2 border-gray-800"
+            style={{ backgroundColor: teamColor }}
+          />
+          <span className="font-hand text-sm text-gray-700">Your team</span>
         </div>
 
         <div className="w-px h-6 bg-gray-300" />

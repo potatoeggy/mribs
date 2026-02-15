@@ -4,7 +4,7 @@ import { analyzeDrawing, fallbackFighterConfig } from "@/lib/ai";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imageData } = body;
+    const { imageData, inkSpent } = body;
 
     if (!imageData || typeof imageData !== "string") {
       return NextResponse.json(
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(fallbackFighterConfig());
     }
 
-    const config = await analyzeDrawing(imageData);
+    const config = await analyzeDrawing(imageData, inkSpent || 100);
     return NextResponse.json(config);
   } catch (error) {
     console.error("AI analysis failed:", error);

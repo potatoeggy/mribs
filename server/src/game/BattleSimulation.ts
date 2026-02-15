@@ -55,6 +55,8 @@ interface FighterState {
   shieldTimer: number;
   abilities: AbilityState[];
   movementSpeed: number;
+  autoAttackCooldown: number; // Time until next autoattack
+  primaryAttackType: string; // Type of primary attack (melee or fireProjectile)
 }
 
 export interface BattleEvent {
@@ -96,6 +98,9 @@ export class BattleSimulation {
       params: a.params,
     }));
 
+    // Determine primary attack type (first offensive ability)
+    const primaryAttackType = abilities.find(a => a.type === "melee" || a.type === "fireProjectile")?.type || "melee";
+
     this.fighters.set(id, {
       id,
       x: startX,
@@ -114,6 +119,8 @@ export class BattleSimulation {
       shieldTimer: 0,
       abilities,
       movementSpeed: config.movementSpeed,
+      autoAttackCooldown: 0,
+      primaryAttackType,
     });
   }
 
@@ -337,13 +344,97 @@ export class BattleSimulation {
         }
       }
 
-      // Ink regen
-      fighter.ink = Math.min(fighter.maxInk, fighter.ink + fighter.inkRegen * dt);
+      // Ink regen (disabled - no regeneration in new system)
+      // fighter.ink = Math.min(fighter.maxInk, fighter.ink + fighter.inkRegen * dt);
 
       // Update facing direction toward opponent
       const opponent = this.getOpponent(fighter.id);
       if (opponent && Math.abs(fighter.vx) < 10) {
         fighter.facingRight = opponent.x > fighter.x;
+      }
+
+      // Autoattack logic
+      if (opponent && opponent.hp > 0) {
+        fighter.autoAttackCooldown = Math.max(0, fighter.autoAttackCooldown - dt);
+
+        const dx = opponent.x - fighter.x;
+        const dy = opponent.y - fighter.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // AI Movement: Move toward opponent if out of melee range
+        if (fighter.primaryAttackType === "melee") {
+          const ability = fighter.abilities.find((a) => a.type === "melee");
+          const meleeRange = (ability?.params.range as number) || 40;
+
+          if (dist > meleeRange + PLAYER_SIZE.width + 10) {
+            // Move toward opponent
+            const moveSpeed = fighter.movementSpeed * 50;
+            fighter.vx += (dx / dist) * moveSpeed * dt * 60;
+          } else {
+            // Stop when in range
+            fighter.vx *= 0.85;
+          }
+        }
+
+        if (fighter.autoAttackCooldown <= 0) {
+          const ability = fighter.abilities.find((a) => a.type === fighter.primaryAttackType);
+          if (ability && ability.cooldownRemaining <= 0) {
+            const inkCost = BATTLE_INK_COSTS[ability.type] || 5;
+
+            if (fighter.ink >= inkCost) {
+              let canAttack = false;
+
+              if (ability.type === "melee") {
+                const range = (ability.params.range as number) || 40;
+                canAttack = dist <= range + PLAYER_SIZE.width;
+              } else if (ability.type === "fireProjectile") {
+                // Projectiles have unlimited range
+                canAttack = true;
+              }
+
+              if (canAttack) {
+                fighter.ink -= inkCost;
+                ability.cooldownRemaining = ability.cooldownMax;
+                fighter.autoAttackCooldown = 0.3; // Small delay between autoattacks
+
+                // Execute attack
+                if (ability.type === "melee") {
+                  const damage = (ability.params.damage as number) || 15;
+                  this.applyDamage(opponent, damage);
+                  this.events.push({
+                    type: "meleeHit",
+                    playerId: fighter.id,
+                    targetId: opponent.id,
+                    amount: damage,
+                  });
+                } else if (ability.type === "fireProjectile") {
+                  const projSpeed = ((ability.params.speed as number) || 5) * 100;
+                  const vx = (dx / dist) * projSpeed;
+                  const vy = (dy / dist) * projSpeed;
+
+                  this.projectiles.push({
+                    id: `proj_${this.nextProjectileId++}`,
+                    ownerId: fighter.id,
+                    x: fighter.x + (fighter.facingRight ? 30 : -30),
+                    y: fighter.y - 10,
+                    vx,
+                    vy,
+                    damage: (ability.params.damage as number) || 10,
+                    active: true,
+                    age: 0,
+                  });
+
+                  this.events.push({
+                    type: "projectileSpawn",
+                    playerId: fighter.id,
+                    x: fighter.x,
+                    y: fighter.y,
+                  });
+                }
+              }
+            }
+          }
+        }
       }
     }
 

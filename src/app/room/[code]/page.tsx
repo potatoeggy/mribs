@@ -85,6 +85,7 @@ export default function GameRoomPage() {
 
   const roomRef = useRef<Room | null>(null);
   const myDrawingDataRef = useRef<string>("");
+  const myInkSpentRef = useRef<number>(100);
   const previousPhaseRef = useRef<string>("");
   const commentatorRef = useRef<{ speak: (text: string) => void } | null>(null);
   const resultPhaseStartRef = useRef<number>(0);
@@ -176,9 +177,9 @@ export default function GameRoomPage() {
         });
 
         r.onMessage("startAnalysis", () => {
-          console.log("[startAnalysis] received, drawingData length:", myDrawingDataRef.current?.length || 0);
+          console.log("[startAnalysis] received, drawingData length:", myDrawingDataRef.current?.length || 0, "ink spent:", myInkSpentRef.current);
           if (myDrawingDataRef.current) {
-            analyzeDrawing(r, myDrawingDataRef.current);
+            analyzeDrawing(r, myDrawingDataRef.current, myInkSpentRef.current);
           }
         });
 
@@ -291,14 +292,14 @@ export default function GameRoomPage() {
 
   // Analyze drawing with AI
   const analyzeDrawing = useCallback(
-    async (r: Room, imageData: string) => {
+    async (r: Room, imageData: string, inkSpent: number) => {
       setIsAnalyzing(true);
       try {
         // Call AI analysis API
         const response = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageData }),
+          body: JSON.stringify({ imageData, inkSpent }),
         });
 
         const config: FighterConfig = await response.json();
@@ -352,11 +353,12 @@ export default function GameRoomPage() {
 
   // Handle drawing submission
   const handleDrawingSubmit = useCallback(
-    (imageData: string) => {
+    (imageData: string, inkSpent: number) => {
       setMyDrawingData(imageData);
       myDrawingDataRef.current = imageData;
+      myInkSpentRef.current = inkSpent;
       if (room) {
-        room.send("submitDrawing", { imageData });
+        room.send("submitDrawing", { imageData, inkSpent });
       }
     },
     [room]
@@ -506,6 +508,7 @@ export default function GameRoomPage() {
                     onStrokeComplete={(stroke) => room?.send("strokeUpdate", stroke)}
                     onStrokeUndo={() => room?.send("strokeUndo", {})}
                     onStrokeClear={() => room?.send("strokeClear", {})}
+                    teamColor={myPlayer?.teamColor || "#1a1a1a"}
                   />
                 </div>
               </div>

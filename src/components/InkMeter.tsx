@@ -4,16 +4,17 @@ import React from "react";
 
 interface InkMeterProps {
   fraction: number; // 0-1
+  label?: string; // Optional custom label
 }
 
-export default function InkMeter({ fraction }: InkMeterProps) {
+export default function InkMeter({ fraction, label }: InkMeterProps) {
   const pct = Math.round(fraction * 100);
   const barColor =
     fraction > 0.5 ? "#1a1a1a" : fraction > 0.2 ? "#f39c12" : "#e74c3c";
 
   return (
     <div className="flex items-center gap-2 flex-1 max-w-xs mx-4">
-      <span className="font-hand text-sm whitespace-nowrap">Ink</span>
+      <span className="font-hand text-sm whitespace-nowrap">{label || "Ink"}</span>
       <div className="flex-1 h-5 bg-gray-200 rounded-full overflow-hidden border border-gray-400 relative">
         {/* Scribble-style fill */}
         <div

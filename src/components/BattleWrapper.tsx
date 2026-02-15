@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useCallback, useState } from "react";
 import type { Room } from "colyseus.js";
 import type { GestureMove } from "@shared/types";
 import BattleGestureControls from "./BattleGestureControls";
+import SummonDrawingModal from "./SummonDrawingModal";
 
 const TAP_MAX_MS = 250;
 const TAP_MAX_DIST = 20;
@@ -47,6 +48,8 @@ interface BattleWrapperProps {
   /** Seconds remaining until attacks enabled (Ready... START countdown) */
   battleCountdownRemaining?: number;
 }
+
+const SUMMON_INK_COST = 50;
 
 function parseRoomState(room: Room) {
   const state = room.state as Record<string, unknown>;
@@ -95,7 +98,7 @@ function parseRoomState(room: Room) {
 
 export default function BattleWrapper({
   room,
-  mySessionId: _mySessionId,
+  mySessionId,
   playerAbilities: _playerAbilities,
   spriteDataMap,
   gestureMoves = [],
@@ -115,6 +118,11 @@ export default function BattleWrapper({
   /** Set false for instant commentary (preset only); true for AI-generated variety (adds ~300-600ms). */
   const USE_AI_COMMENTARY = false;
   roomRef.current = room;
+
+  // Summon modal state
+  const [isSummonModalOpen, setIsSummonModalOpen] = useState(false);
+  const [isSummoning, setIsSummoning] = useState(false);
+  const [myInk, setMyInk] = useState(0);
 
   const maybeCommentary = useCallback(async (context: {
     eventType: "attack" | "damage" | "death";
@@ -216,6 +224,69 @@ export default function BattleWrapper({
     [gestureMoves.length, getMoveByGesture, onGestureAttack, isOnAttackCooldown, battleReady]
   );
 
+  const handleSummonSubmit = useCallback(async (imageData: string) => {
+    setIsSummoning(true);
+
+    try {
+      // Analyze the drawing with AI
+      const response = await fetch("/api/analyzeSummon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to analyze drawing");
+      }
+
+      const { config } = await response.json();
+
+      // Extract sprite from the drawing
+      const spriteData = extractSprite(imageData, config.spriteBounds);
+
+      // Send to server
+      room.send("summonFighter", { config, spriteData });
+
+      setIsSummonModalOpen(false);
+    } catch (error) {
+      console.error("Failed to summon fighter:", error);
+      alert("Failed to summon fighter. Please try again.");
+    } finally {
+      setIsSummoning(false);
+    }
+  }, [room]);
+
+  const extractSprite = (imageData: string, bounds: { x: number; y: number; width: number; height: number }): string => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return imageData;
+
+    const img = new Image();
+    img.src = imageData;
+
+    // Wait for image to load synchronously (for demo purposes)
+    // In production, you'd want to handle this async
+    canvas.width = bounds.width;
+    canvas.height = bounds.height;
+
+    try {
+      ctx.drawImage(
+        img,
+        bounds.x,
+        bounds.y,
+        bounds.width,
+        bounds.height,
+        0,
+        0,
+        bounds.width,
+        bounds.height
+      );
+      return canvas.toDataURL("image/png");
+    } catch {
+      return imageData;
+    }
+  };
+
   useEffect(() => {
     let game: import("phaser").Game | null = null;
     let scene: InstanceType<typeof import("@/game/scenes/BattleScene").BattleScene> | null = null;
@@ -256,7 +327,34 @@ export default function BattleWrapper({
           const getName = (id: string) => players.get(id)?.fighterName || "Fighter";
 
           for (const event of events) {
-            if (event.type === "damage" || event.type === "meleeHit") {
+            if (event.type === "meleeHit") {
+              // Play autoattack melee visual effect
+              const attackerId = event.playerId as string;
+              const targetId = event.targetId as string;
+              if (attackerId && targetId) {
+                scene.playAutoMeleeEffect(attackerId, targetId);
+              }
+
+              const targetPlayer = players.get(targetId);
+              if (targetPlayer) {
+                scene.showDamageNumber(
+                  targetPlayer.x,
+                  targetPlayer.y - 20,
+                  (event.amount as number) || 0
+                );
+              }
+
+              const amount = (event.amount as number) || 0;
+              if (onCommentaryRef.current && targetId && amount > 0) {
+                const attackerName = getName(attackerId);
+                const targetName = getName(targetId);
+                maybeCommentary(
+                  { eventType: "attack", attackerName, targetName, action: "strike", amount },
+                  pick(COMMENTARY_LINES.attack)(attackerName, targetName, "strike")
+                );
+              }
+            }
+            if (event.type === "damage") {
               scene.showDamageNumber(
                 (event.x as number) || 400,
                 (event.y as number) || 300,
@@ -270,6 +368,13 @@ export default function BattleWrapper({
                   { eventType: "damage", targetName: name, amount },
                   pick(COMMENTARY_LINES.damage)(name, amount)
                 );
+              }
+            }
+            if (event.type === "projectileSpawn") {
+              // Play autoattack projectile visual effect
+              const attackerId = event.playerId as string;
+              if (attackerId) {
+                scene.playAutoProjectileEffect(attackerId);
               }
             }
             if (event.type === "death") {
@@ -309,6 +414,28 @@ export default function BattleWrapper({
             drawingData: data.drawingData as string | undefined,
           });
         });
+
+        currentRoom.onMessage("fighterSummoned", (data: Record<string, unknown>) => {
+          if (!scene) return;
+
+          const fighterId = data.fighterId as string;
+          const spriteData = data.spriteData as string | undefined;
+          const config = data.config as Record<string, unknown>;
+
+          if (spriteData) {
+            scene.loadFighterSprite(fighterId, spriteData);
+          }
+
+          // Show summon effect
+          scene.showSummonEffect(data.x as number, data.y as number);
+
+          if (onCommentaryRef.current && config) {
+            maybeCommentary(
+              { eventType: "attack", attackerName: config.name as string, targetName: "battle", action: "enters" },
+              `${config.name} has entered the battle!`
+            );
+          }
+        });
       });
     };
 
@@ -339,6 +466,24 @@ export default function BattleWrapper({
     return () => clearInterval(id);
   }, [attackCooldownUntil]);
 
+  // Track player's ink
+  useEffect(() => {
+    const updateInk = () => {
+      const { players } = parseRoomState(room);
+      const myPlayer = players.get(mySessionId);
+      if (myPlayer) {
+        setMyInk(myPlayer.ink);
+      }
+    };
+
+    updateInk();
+    room.onStateChange(updateInk);
+
+    return () => {
+      room.onStateChange.clear();
+    };
+  }, [room, mySessionId]);
+
   return (
     <div className="flex flex-col items-center gap-2 w-full">
       <div
@@ -346,46 +491,49 @@ export default function BattleWrapper({
         className="relative w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
       >
         <div ref={containerRef} className="absolute inset-0" />
-        {gestureMoves.length > 0 && (
-          <>
-            {battleCountdownRemaining > 0 && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none z-10">
-                <div className="font-hand text-5xl font-bold text-white drop-shadow-lg text-center animate-pulse">
-                  {battleCountdownRemaining > 5
-                    ? "Ready..."
-                    : battleCountdownRemaining > 4
-                      ? "3"
-                      : battleCountdownRemaining > 3
-                        ? "2"
-                        : battleCountdownRemaining > 2
-                          ? "1"
-                          : "START!!!"}
-                </div>
-              </div>
-            )}
-            <div
-              className={`absolute inset-0 z-20 touch-none ${battleReady ? "cursor-crosshair" : "cursor-not-allowed"}`}
-              onPointerDown={handleOverlayPointerDown}
-              onPointerUp={handleOverlayPointerUp}
-              onPointerLeave={() => { pointerRef.current = null; }}
-              onPointerCancel={() => { pointerRef.current = null; }}
-            />
-            {cooldownRemaining > 0 && (
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-black/70 text-white font-hand text-sm font-bold pointer-events-none">
-                Attack in {cooldownRemaining.toFixed(1)}s
-              </div>
-            )}
-          </>
+        {battleCountdownRemaining > 0 && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none z-10">
+            <div className="font-hand text-5xl font-bold text-white drop-shadow-lg text-center animate-pulse">
+              {battleCountdownRemaining > 5
+                ? "Ready..."
+                : battleCountdownRemaining > 4
+                  ? "3"
+                  : battleCountdownRemaining > 3
+                    ? "2"
+                    : battleCountdownRemaining > 2
+                      ? "1"
+                      : "START!!!"}
+            </div>
+          </div>
+        )}
+
+        {/* Autoattack indicator */}
+        {battleReady && (
+          <div className="absolute bottom-2 left-2 px-3 py-1.5 rounded-lg bg-black/70 text-white font-hand text-sm font-bold pointer-events-none">
+            ⚔️ Autoattacking
+          </div>
+        )}
+
+        {/* Summon button */}
+        {battleReady && (
+          <button
+            onClick={() => setIsSummonModalOpen(true)}
+            disabled={myInk < SUMMON_INK_COST || isSummoning}
+            className="absolute bottom-2 right-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-hand font-bold text-sm rounded-lg transition-colors border-2 border-white shadow-lg flex items-center gap-2"
+          >
+            ✨ Summon ({SUMMON_INK_COST} ink)
+          </button>
         )}
       </div>
-      {gestureMoves.length > 0 && (
-        <BattleGestureControls
-          gestureMoves={gestureMoves}
-          onGestureAttack={onGestureAttack}
-          attackCooldownRemaining={battleReady ? cooldownRemaining : battleCountdownRemaining}
-          attackDisabled={!battleReady}
-        />
-      )}
+
+      {/* Summon modal */}
+      <SummonDrawingModal
+        isOpen={isSummonModalOpen}
+        onClose={() => setIsSummonModalOpen(false)}
+        onSubmit={handleSummonSubmit}
+        inkCost={SUMMON_INK_COST}
+        currentInk={myInk}
+      />
     </div>
   );
 }

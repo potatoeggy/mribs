@@ -17,6 +17,7 @@ interface FighterDisplay {
 interface ProjectileDisplay {
   id: string;
   graphic: Phaser.GameObjects.Arc;
+  trail: Phaser.GameObjects.Arc[];
 }
 
 interface BattleState {
@@ -46,13 +47,72 @@ export class BattleScene extends Phaser.Scene {
   private fighters: Map<string, FighterDisplay> = new Map();
   private projectileDisplays: Map<string, ProjectileDisplay> = new Map();
   private fallingDrawings: FallingDrawing[] = [];
+  private sounds: { [key: string]: Phaser.Sound.BaseSound } = {};
 
   constructor() {
     super({ key: "BattleScene" });
   }
 
+  preload(): void {
+    // Load sound effects
+    // For now, we'll use procedurally generated sounds
+    // You can replace these with actual audio files in /public/sounds/
+  }
+
   create(): void {
     this.drawArenaBackground();
+
+    // Create procedural sound effects using Web Audio
+    this.createProceduralSounds();
+  }
+
+  private createProceduralSounds(): void {
+    // These are simple beep sounds - you can replace with actual audio files
+    // by uncommenting the load.audio lines in preload and using this.sound.add()
+  }
+
+  private playSound(key: string, volume: number = 0.3): void {
+    // Play a short beep sound using Web Audio API
+    if (!this.sys.game?.sound?.context) return;
+
+    const context = this.sys.game.sound.context as AudioContext;
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+
+    // Different sounds for different actions
+    switch (key) {
+      case "melee":
+        oscillator.frequency.value = 200;
+        gainNode.gain.setValueAtTime(volume, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.1);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.1);
+        break;
+      case "projectile":
+        oscillator.frequency.value = 400;
+        gainNode.gain.setValueAtTime(volume * 0.5, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.15);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.15);
+        break;
+      case "damage":
+        oscillator.frequency.value = 150;
+        gainNode.gain.setValueAtTime(volume * 0.7, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.08);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.08);
+        break;
+      case "summon":
+        oscillator.frequency.value = 600;
+        gainNode.gain.setValueAtTime(volume * 0.4, context.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.3);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.3);
+        break;
+    }
   }
 
   update(): void {
@@ -78,7 +138,38 @@ export class BattleScene extends Phaser.Scene {
         fighter.shieldGraphic.y = sprite.y;
       }
 
-      sprite.setRotation(Math.sin(this.time.now * 0.005 + sprite.x) * 0.03);
+      // Dynamic idle animation - gentle breathing/bobbing
+      if (!skipLerp) {
+        // Check if character is moving
+        const isMoving = Math.abs(fighter.targetX - sprite.x) > 5;
+
+        if (isMoving) {
+          // Moving animation - squash/stretch based on velocity
+          const velX = fighter.targetX - sprite.x;
+          const moveSpeed = Math.abs(velX) / 50; // Normalize
+          const squashAmount = Math.min(moveSpeed * 0.15, 0.15);
+
+          // Lean in direction of movement
+          const leanAngle = Math.sign(velX) * Math.min(moveSpeed * 0.1, 0.15);
+
+          sprite.setScale(1 - squashAmount, 1 + squashAmount);
+          sprite.setRotation(leanAngle);
+
+          // Bounce while moving
+          const bounceY = Math.sin(now * 0.015) * 3;
+          sprite.y += bounceY;
+        } else {
+          // Idle breathing animation
+          const breatheScale = 1 + Math.sin(now * 0.003 + sprite.x * 0.01) * 0.04;
+          const breatheY = Math.sin(now * 0.002 + sprite.x * 0.01) * 1.5;
+          sprite.setScale(breatheScale, breatheScale);
+          sprite.y += breatheY;
+
+          // Slight rotation wobble
+          const wobble = Math.sin(now * 0.004 + sprite.x) * 0.02;
+          sprite.setRotation(wobble);
+        }
+      }
     }
 
     for (let i = this.fallingDrawings.length - 1; i >= 0; i--) {
@@ -145,6 +236,8 @@ export class BattleScene extends Phaser.Scene {
       if (!fighter) {
         fighter = this.createFighterDisplay(id, data.fighterName);
         this.fighters.set(id, fighter);
+        // Animate character spawn
+        this.animateCharacterSpawn(id);
       }
 
       fighter.targetX = data.x;
@@ -181,6 +274,7 @@ export class BattleScene extends Phaser.Scene {
     for (const [id, display] of this.projectileDisplays) {
       if (!activeProjectileIds.has(id)) {
         display.graphic.destroy();
+        display.trail.forEach((t) => t.destroy());
         this.projectileDisplays.delete(id);
       }
     }
@@ -188,14 +282,45 @@ export class BattleScene extends Phaser.Scene {
     for (const proj of state.projectiles) {
       let display = this.projectileDisplays.get(proj.id);
       if (!display) {
-        const graphic = this.add.circle(proj.x, proj.y, 6, 0x1a1a1a);
-        graphic.setStrokeStyle(2, 0x333333);
+        // Create main projectile with glow
+        const graphic = this.add.circle(proj.x, proj.y, 8, 0x3498db, 0.9);
+        graphic.setStrokeStyle(3, 0xffffff, 0.8);
         graphic.setDepth(10);
-        display = { id: proj.id, graphic };
+
+        // Create trail particles
+        const trail: Phaser.GameObjects.Arc[] = [];
+        for (let i = 0; i < 5; i++) {
+          const trailPart = this.add.circle(proj.x, proj.y, 6 - i, 0x3498db, 0.5 - i * 0.08);
+          trailPart.setDepth(9);
+          trail.push(trailPart);
+        }
+
+        display = { id: proj.id, graphic, trail };
         this.projectileDisplays.set(proj.id, display);
       }
+
+      // Smooth projectile movement
+      const prevX = display.graphic.x;
+      const prevY = display.graphic.y;
       display.graphic.x += (proj.x - display.graphic.x) * 0.5;
       display.graphic.y += (proj.y - display.graphic.y) * 0.5;
+
+      // Update trail with smooth delay
+      for (let i = display.trail.length - 1; i >= 0; i--) {
+        const trailPart = display.trail[i];
+        if (i === 0) {
+          trailPart.x += (prevX - trailPart.x) * 0.6;
+          trailPart.y += (prevY - trailPart.y) * 0.6;
+        } else {
+          const prev = display.trail[i - 1];
+          trailPart.x += (prev.x - trailPart.x) * 0.5;
+          trailPart.y += (prev.y - trailPart.y) * 0.5;
+        }
+      }
+
+      // Pulse effect on main projectile
+      const pulse = 1 + Math.sin(this.time.now * 0.01) * 0.2;
+      display.graphic.setScale(pulse);
     }
   }
 
@@ -232,6 +357,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   showDamageNumber(x: number, y: number, amount: number): void {
+    // Play damage sound
+    this.playSound("damage");
+
     const text = this.add.text(x, y - 20, `-${amount}`, {
       fontFamily: '"Caveat", cursive',
       fontSize: "24px",
@@ -261,29 +389,57 @@ export class BattleScene extends Phaser.Scene {
     if (fighter.shieldGraphic) fighter.shieldGraphic.setVisible(false);
 
     const sprite = fighter.sprite;
-    const x = sprite.x;
     const y = sprite.y;
 
     sprite.setDepth(50);
 
+    // Dramatic defeat sequence
+    // 1. Freeze and flash
+    sprite.setTint(0xffffff);
+    this.time.delayedCall(80, () => {
+      sprite.clearTint();
+    });
+
+    // 2. Expand and shake
     this.tweens.add({
       targets: sprite,
-      scaleX: 1.4,
-      scaleY: 1.4,
-      alpha: 0.95,
-      duration: 120,
-      ease: "Quad.easeOut",
+      scaleX: 1.3,
+      scaleY: 0.8,
+      duration: 100,
+      ease: "Quad.Out",
+      yoyo: true,
+      repeat: 1,
       onComplete: () => {
+        // 3. Dramatic fall and spin
         this.tweens.add({
           targets: sprite,
-          y: y + 140,
-          scaleX: 0.15,
-          scaleY: 0.15,
-          rotation: Math.PI * 2,
+          y: y + 150,
+          scaleX: 0.2,
+          scaleY: 0.2,
+          rotation: Math.PI * 3,
           alpha: 0,
-          duration: 900,
+          duration: 800,
           ease: "Cubic.easeIn",
         });
+
+        // Add trailing afterimages
+        for (let i = 0; i < 5; i++) {
+          this.time.delayedCall(i * 120, () => {
+            const ghost = this.add.sprite(sprite.x, sprite.y, sprite.texture);
+            ghost.setScale(sprite.scaleX, sprite.scaleY);
+            ghost.setRotation(sprite.rotation);
+            ghost.setAlpha(0.3);
+            ghost.setTint(0xff0000);
+            ghost.setDepth(49);
+            this.tweens.add({
+              targets: ghost,
+              alpha: 0,
+              scale: 0,
+              duration: 300,
+              onComplete: () => ghost.destroy(),
+            });
+          });
+        }
       },
     });
 
@@ -639,5 +795,360 @@ export class BattleScene extends Phaser.Scene {
     fighter.hpBarFill.destroy();
     if (fighter.shieldGraphic) fighter.shieldGraphic.destroy();
     this.fighters.delete(id);
+  }
+
+  /**
+   * Play autoattack melee effect with AI-designed animation
+   */
+  playAutoMeleeEffect(attackerId: string, targetId: string): void {
+    const attacker = this.fighters.get(attackerId);
+    const target = this.fighters.get(targetId);
+    if (!attacker || !target) return;
+
+    const fromX = attacker.sprite.x;
+    const fromY = attacker.sprite.y;
+    const toX = target.sprite.x;
+    const toY = target.sprite.y;
+
+    // Quick lunge animation with squash/stretch
+    attacker.ignoreLerpUntil = this.time.now + 400;
+    const lungeX = toX + (toX > fromX ? -30 : 30);
+    const lungeY = toY;
+
+    // Play melee sound
+    this.playSound("melee");
+
+    // Anticipation - squash before attack
+    this.tweens.add({
+      targets: attacker.sprite,
+      scaleX: 0.85,
+      scaleY: 1.15,
+      duration: 50,
+      ease: "Quad.Out",
+      onComplete: () => {
+        // Stretch forward during lunge
+        this.tweens.add({
+          targets: attacker.sprite,
+          x: lungeX,
+          y: lungeY,
+          scaleX: 1.3,
+          scaleY: 0.8,
+          rotation: (toX > fromX ? 0.15 : -0.15),
+          duration: 80,
+          ease: "Cubic.Out",
+          onComplete: () => {
+            // Impact effect - energy burst
+            const impact = this.add.circle(lungeX, lungeY, 12, 0xff6b6b, 0.7);
+            impact.setStrokeStyle(3, 0xffffff, 0.9);
+            impact.setDepth(20);
+            this.tweens.add({
+              targets: impact,
+              scale: 2.5,
+              alpha: 0,
+              duration: 250,
+              ease: "Quad.Out",
+              onComplete: () => impact.destroy(),
+            });
+
+            // Particle burst
+            for (let i = 0; i < 8; i++) {
+              const angle = (i / 8) * Math.PI * 2;
+              const particle = this.add.circle(lungeX, lungeY, 3, 0xff6b6b, 0.8);
+              particle.setDepth(19);
+              this.tweens.add({
+                targets: particle,
+                x: lungeX + Math.cos(angle) * 40,
+                y: lungeY + Math.sin(angle) * 40,
+                alpha: 0,
+                duration: 300,
+                ease: "Quad.Out",
+                onComplete: () => particle.destroy(),
+              });
+            }
+
+            // Target damage animation - shake and flash
+            this.playDamageAnimation(target);
+          },
+        });
+      },
+    });
+
+    // Return to position with bounce
+    this.time.delayedCall(130, () => {
+      this.tweens.add({
+        targets: attacker.sprite,
+        x: fromX,
+        y: fromY,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        duration: 200,
+        ease: "Back.easeOut",
+      });
+    });
+  }
+
+  /**
+   * Play damage taken animation on a fighter
+   */
+  private playDamageAnimation(fighter: FighterDisplay): void {
+    const sprite = fighter.sprite;
+    const origX = sprite.x;
+
+    // Flash white
+    const originalTint = sprite.tintTopLeft;
+    sprite.setTint(0xffffff);
+    this.time.delayedCall(50, () => {
+      sprite.clearTint();
+      if (originalTint !== 0xffffff) {
+        sprite.setTint(originalTint);
+      }
+    });
+
+    // Shake and recoil
+    this.tweens.add({
+      targets: sprite,
+      x: origX + 10,
+      scaleX: 0.9,
+      scaleY: 1.1,
+      duration: 40,
+      yoyo: true,
+      repeat: 2,
+      ease: "Quad.InOut",
+    });
+  }
+
+  /**
+   * Play projectile spawn effect with AI-designed trail
+   */
+  playAutoProjectileEffect(attackerId: string): void {
+    const attacker = this.fighters.get(attackerId);
+    if (!attacker) return;
+
+    // Play projectile sound
+    this.playSound("projectile");
+
+    const sprite = attacker.sprite;
+    const originalScale = sprite.scaleX;
+
+    // Character animation - lean back then forward (recoil)
+    attacker.ignoreLerpUntil = this.time.now + 300;
+
+    // Charge-up pose - pull back
+    this.tweens.add({
+      targets: sprite,
+      scaleX: originalScale * 0.9,
+      scaleY: originalScale * 1.1,
+      rotation: sprite.x < ARENA_WIDTH / 2 ? -0.1 : 0.1,
+      duration: 100,
+      ease: "Quad.Out",
+      onComplete: () => {
+        // Fire pose - lean forward
+        this.tweens.add({
+          targets: sprite,
+          scaleX: originalScale * 1.1,
+          scaleY: originalScale * 0.9,
+          rotation: sprite.x < ARENA_WIDTH / 2 ? 0.05 : -0.05,
+          duration: 80,
+          ease: "Quad.In",
+        });
+
+        // Return to normal
+        this.time.delayedCall(80, () => {
+          this.tweens.add({
+            targets: sprite,
+            scaleX: originalScale,
+            scaleY: originalScale,
+            rotation: 0,
+            duration: 150,
+            ease: "Back.easeOut",
+          });
+        });
+      },
+    });
+
+    // Charge-up effect
+    const chargeX = attacker.sprite.x + (attacker.sprite.x < ARENA_WIDTH / 2 ? 30 : -30);
+    const chargeY = attacker.sprite.y - 10;
+
+    const charge = this.add.circle(chargeX, chargeY, 8, 0x3498db, 0.6);
+    charge.setStrokeStyle(2, 0xffffff, 0.8);
+    charge.setDepth(15);
+
+    this.tweens.add({
+      targets: charge,
+      scale: 1.8,
+      alpha: 0,
+      duration: 200,
+      ease: "Quad.Out",
+      onComplete: () => charge.destroy(),
+    });
+
+    // Energy ring
+    const ring = this.add.circle(chargeX, chargeY, 15, 0x3498db, 0);
+    ring.setStrokeStyle(3, 0x3498db, 0.7);
+    ring.setDepth(15);
+    this.tweens.add({
+      targets: ring,
+      scale: 2,
+      alpha: 0,
+      duration: 250,
+      ease: "Quad.Out",
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  /**
+   * Show magical summon effect at position
+   */
+  showSummonEffect(x: number, y: number): void {
+    // Play summon sound
+    this.playSound("summon");
+
+    // Purple magic circle
+    const circle = this.add.circle(x, y, 5, 0x9b59b6, 0.6);
+    circle.setStrokeStyle(3, 0xffffff, 0.9);
+    circle.setDepth(25);
+
+    this.tweens.add({
+      targets: circle,
+      scale: 6,
+      alpha: 0,
+      duration: 500,
+      ease: "Quad.Out",
+      onComplete: () => circle.destroy(),
+    });
+
+    // Sparkle particles
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const distance = 40 + Math.random() * 20;
+      const sparkle = this.add.circle(x, y, 3, 0xf39c12, 0.9);
+      sparkle.setDepth(26);
+
+      this.tweens.add({
+        targets: sparkle,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance - 30,
+        alpha: 0,
+        duration: 600 + Math.random() * 200,
+        ease: "Quad.Out",
+        onComplete: () => sparkle.destroy(),
+      });
+    }
+
+    // Flash effect
+    const flash = this.add.circle(x, y, 60, 0xffffff, 0);
+    flash.setDepth(24);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0.6,
+      duration: 100,
+    });
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scale: 1.5,
+      duration: 400,
+      delay: 100,
+      ease: "Quad.Out",
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  /**
+   * Animate character spawn - grow from small with bounce
+   */
+  animateCharacterSpawn(fighterId: string): void {
+    const fighter = this.fighters.get(fighterId);
+    if (!fighter) return;
+
+    const sprite = fighter.sprite;
+
+    // Start small and grow with bounce
+    sprite.setScale(0.1);
+    sprite.setAlpha(0);
+
+    this.tweens.add({
+      targets: sprite,
+      scale: 1.2,
+      alpha: 1,
+      duration: 300,
+      ease: "Back.easeOut",
+      onComplete: () => {
+        // Settle to normal size
+        this.tweens.add({
+          targets: sprite,
+          scale: 1,
+          duration: 150,
+          ease: "Quad.Out",
+        });
+      },
+    });
+  }
+
+  /**
+   * Victory celebration animation
+   */
+  showVictoryAnimation(winnerId: string): void {
+    const fighter = this.fighters.get(winnerId);
+    if (!fighter) return;
+
+    const sprite = fighter.sprite;
+
+    // Stop normal animations
+    fighter.ignoreLerpUntil = this.time.now + 10000;
+
+    // Victory jump and pose
+    this.tweens.add({
+      targets: sprite,
+      y: sprite.y - 60,
+      scaleX: 1.1,
+      scaleY: 1.1,
+      duration: 400,
+      ease: "Quad.Out",
+      yoyo: true,
+      repeat: 2,
+    });
+
+    // Spinning stars around winner
+    for (let i = 0; i < 8; i++) {
+      this.time.delayedCall(i * 100, () => {
+        const angle = (i / 8) * Math.PI * 2;
+        const radius = 50;
+        const star = this.add.circle(
+          sprite.x + Math.cos(angle) * radius,
+          sprite.y + Math.sin(angle) * radius,
+          4,
+          0xffd700,
+          0.9
+        );
+        star.setDepth(30);
+
+        this.tweens.add({
+          targets: star,
+          scale: 2,
+          alpha: 0,
+          duration: 600,
+          ease: "Quad.Out",
+          onComplete: () => star.destroy(),
+        });
+      });
+    }
+
+    // Continuous bounce
+    this.time.addEvent({
+      delay: 800,
+      callback: () => {
+        this.tweens.add({
+          targets: sprite,
+          scaleY: 1.15,
+          duration: 200,
+          yoyo: true,
+          ease: "Quad.InOut",
+        });
+      },
+      loop: true,
+    });
   }
 }

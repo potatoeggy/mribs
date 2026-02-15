@@ -1,4 +1,4 @@
-import { Schema, MapSchema, ArraySchema, type, filter } from "@colyseus/schema";
+import { Schema, MapSchema, ArraySchema, type } from "@colyseus/schema";
 
 export class ProjectileSchema extends Schema {
   @type("string") id: string = "";
@@ -39,6 +39,7 @@ export class PlayerSchema extends Schema {
   @type("string") spriteData: string = ""; // base64 PNG
   @type("string") gestureMoveSummary: string = ""; // JSON array of { action, power } for analyzing UI
   @type([AbilitySchema]) abilities = new ArraySchema<AbilitySchema>();
+  @type("string") teamColor: string = "#1a1a1a"; // Player's team color (red or blue)
 }
 
 export class GameStateSchema extends Schema {
@@ -50,8 +51,8 @@ export class GameStateSchema extends Schema {
   @type("string") roomCode: string = "";
 
   // Room config
-  @type("number") inkBudget: number = 5000;
+  @type("number") inkBudget: number = 5000; // Drawing phase ink budget (not used in new system)
   @type("number") drawingTimeLimit: number = 75;
-  @type("number") battleInkMax: number = 100;
-  @type("number") battleInkRegen: number = 8;
+  @type("number") battleInkMax: number = 200; // Starting ink for battle (no regen)
+  @type("number") battleInkRegen: number = 0; // No regeneration in new system
 }

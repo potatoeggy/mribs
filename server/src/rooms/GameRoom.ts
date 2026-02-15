@@ -78,6 +78,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.onMessage("strokeUpdate", (client, data) => this.relayToOpponent(client, "opponentStroke", data));
     this.onMessage("strokeUndo", (client) => this.relayToOpponent(client, "opponentStrokeUndo", {}));
     this.onMessage("strokeClear", (client) => this.relayToOpponent(client, "opponentStrokeClear", {}));
+    this.onMessage("summonFighter", (client, data) => this.handleSummonFighter(client, data));
 
     console.log(`Room ${this.state.roomCode} created`);
   }
@@ -86,9 +87,14 @@ export class GameRoom extends Room<GameStateSchema> {
     const player = new PlayerSchema();
     player.id = client.sessionId;
     player.name = `Player ${this.state.players.size + 1}`;
+
+    // Assign team colors: first player is red, second is blue
+    const playerIndex = this.state.players.size;
+    player.teamColor = playerIndex === 0 ? "#e74c3c" : "#3498db"; // Red vs Blue
+
     this.state.players.set(client.sessionId, player);
 
-    console.log(`${client.sessionId} joined room ${this.state.roomCode}`);
+    console.log(`${client.sessionId} joined room ${this.state.roomCode} (${player.teamColor})`);
   }
 
   onLeave(client: Client): void {
@@ -138,7 +144,7 @@ export class GameRoom extends Room<GameStateSchema> {
     }
   }
 
-  private handleDrawingSubmit(client: Client, data: { imageData: string; spriteData?: string }): void {
+  private handleDrawingSubmit(client: Client, data: { imageData: string; spriteData?: string; inkSpent?: number }): void {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
@@ -150,6 +156,12 @@ export class GameRoom extends Room<GameStateSchema> {
 
     player.drawingSubmitted = true;
     this.playerDrawings.set(client.sessionId, data.imageData);
+
+    // Store ink spent for AI analysis
+    if (data.inkSpent !== undefined) {
+      const inkSpentKey = `${client.sessionId}_inkSpent`;
+      (this as Record<string, number>)[inkSpentKey] = data.inkSpent;
+    }
 
     let allSubmitted = true;
     this.state.players.forEach((p) => {
@@ -253,6 +265,55 @@ export class GameRoom extends Room<GameStateSchema> {
     }
   }
 
+  private handleSummonFighter(client: Client, data: { config: FighterConfig; spriteData?: string }): void {
+    if (this.state.phase !== "battle" || !this.battleSim) return;
+
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+
+    // Check ink cost for summoning (fixed cost)
+    const SUMMON_COST = 50;
+    if (player.ink < SUMMON_COST) {
+      client.send("summonFailed", { reason: "Not enough ink" });
+      return;
+    }
+
+    player.ink -= SUMMON_COST;
+
+    // Generate unique fighter ID
+    const fighterId = `${client.sessionId}_summon_${Date.now()}`;
+
+    // Determine spawn position (near player's side)
+    const playerIndex = Array.from(this.state.players.keys()).indexOf(client.sessionId);
+    const startX = playerIndex === 0 ? 200 : ARENA_WIDTH - 200;
+    const facingRight = playerIndex === 0;
+
+    // Add fighter to battle simulation
+    this.battleSim.addFighter(fighterId, startX, facingRight, {
+      maxHp: data.config.health.maxHp,
+      movementSpeed: data.config.movement.speed,
+      abilities: data.config.abilities.map((a) => ({
+        type: a.type,
+        params: a.params as Record<string, number | string>,
+      })),
+      battleInkMax: 50, // Fixed ink pool for summoned fighters
+      battleInkRegen: this.state.battleInkRegen,
+    });
+
+    // Broadcast the summon event
+    this.broadcast("fighterSummoned", {
+      fighterId,
+      ownerId: client.sessionId,
+      config: data.config,
+      spriteData: data.spriteData,
+      x: startX,
+      y: GROUND_Y,
+      facingRight,
+    });
+
+    console.log(`Player ${client.sessionId} summoned fighter ${fighterId}: ${data.config.name}`);
+  }
+
   // ---- Phase Transitions ----
 
   private startDrawingPhase(): void {
@@ -294,8 +355,8 @@ export class GameRoom extends Room<GameStateSchema> {
             this.playerConfigs.set(p.id, this.fallbackConfig());
             p.fighterName = "Scribble Warrior";
             p.fighterDescription = "A brave scribble!";
-            p.maxHp = 100;
-            p.hp = 100;
+            p.maxHp = 500;
+            p.hp = 500;
           }
         });
         this.startBattle();
@@ -420,8 +481,8 @@ export class GameRoom extends Room<GameStateSchema> {
     this.state.players.forEach((player) => {
       player.isReady = false;
       player.drawingSubmitted = false;
-      player.hp = 100;
-      player.maxHp = 100;
+      player.hp = 500;
+      player.maxHp = 500;
       player.x = 0;
       player.y = 0;
       player.vx = 0;
@@ -501,7 +562,7 @@ export class GameRoom extends Room<GameStateSchema> {
     return {
       name: "Scribble Warrior",
       description: "A brave scribble that fights with determination!",
-      health: { maxHp: 100 },
+      health: { maxHp: 500 },
       movement: { speed: 3, type: "walk" },
       abilities: [
         { type: "melee", params: { damage: 15, range: 40, cooldown: 0.8 } },
