@@ -48,13 +48,16 @@ export class GameRoom extends Room<GameStateSchema> {
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private playerConfigs: Map<string, FighterConfig> = new Map();
   private playerDrawings: Map<string, string> = new Map(); // sessionId -> base64 PNG
+  private playerInkSpent: Map<string, number> = new Map(); // sessionId -> ink spent
   private playerGestureMoves: Map<string, GestureMove[]> = new Map();
   private gestureCooldowns: Map<string, number> = new Map(); // "sessionId" -> time until ready (global cooldown)
   private readonly GESTURE_COOLDOWN_SEC = 2;
   /** Summon ink per player - only decreases on summon, not from battle sim (moves/abilities) */
   private summonInk: Map<string, number> = new Map();
+  /** Spectators (sessionIds) - receive state but don't play */
+  private spectators = new Set<string>();
 
-  maxClients = 2;
+  maxClients = 12; // 2 players + up to 10 spectators
 
   onCreate(options: Record<string, unknown>): void {
     this.setState(new GameStateSchema());
@@ -88,24 +91,44 @@ export class GameRoom extends Room<GameStateSchema> {
     this.onMessage("gestureAttack", (client, data) =>
       this.handleGestureAttack(client, data),
     );
-    this.onMessage("playAgain", () => this.resetToLobby());
+    this.onMessage("playAgain", (client) => {
+      if (!this.spectators.has(client.sessionId)) this.resetToLobby();
+    });
     this.onMessage("strokeUpdate", (client, data) =>
-      this.relayToOpponent(client, "opponentStroke", data),
+      this.relayStroke(client, "stroke", data),
     );
     this.onMessage("strokeUndo", (client) =>
-      this.relayToOpponent(client, "opponentStrokeUndo", {}),
+      this.relayStroke(client, "undo", undefined),
     );
     this.onMessage("strokeClear", (client) =>
-      this.relayToOpponent(client, "opponentStrokeClear", {}),
+      this.relayStroke(client, "clear", undefined),
     );
     this.onMessage("summonFighter", (client, data) =>
       this.handleSummonFighter(client, data),
     );
+    this.onMessage("chat", (client, data) => this.handleChat(client, data));
 
     console.log(`Room ${this.state.roomCode} created`);
   }
 
-  onJoin(client: Client): void {
+  onJoin(client: Client, options?: Record<string, unknown>): void {
+    if (options?.spectator === true) {
+      this.spectators.add(client.sessionId);
+      console.log(
+        `${client.sessionId} joined as SPECTATOR in ${this.state.roomCode}`,
+      );
+      return;
+    }
+
+    if (this.state.players.size >= 2) {
+      // Room full of players - convert to spectator
+      this.spectators.add(client.sessionId);
+      console.log(
+        `${client.sessionId} joined as SPECTATOR (room full) in ${this.state.roomCode}`,
+      );
+      return;
+    }
+
     const player = new PlayerSchema();
     player.id = client.sessionId;
     player.name = `Player ${this.state.players.size + 1}`;
@@ -122,6 +145,7 @@ export class GameRoom extends Room<GameStateSchema> {
   }
 
   onLeave(client: Client): void {
+    this.spectators.delete(client.sessionId);
     this.state.players.delete(client.sessionId);
     console.log(`${client.sessionId} left room ${this.state.roomCode}`);
 
@@ -140,17 +164,44 @@ export class GameRoom extends Room<GameStateSchema> {
     console.log(`Room ${this.state.roomCode} disposed`);
   }
 
-  private relayToOpponent(
+  private relayStroke(
     sender: Client,
-    messageType: string,
-    data: unknown,
+    action: "stroke" | "undo" | "clear",
+    data?: unknown,
   ): void {
     if (this.state.phase !== "drawing") return;
     for (const client of this.clients) {
-      if (client.sessionId !== sender.sessionId) {
-        client.send(messageType, data);
+      if (client.sessionId === sender.sessionId) continue;
+      if (this.spectators.has(client.sessionId)) {
+        client.send("drawingStroke", {
+          ownerId: sender.sessionId,
+          action,
+          stroke: data,
+        });
+      } else {
+        // Opponent player gets original message format
+        if (action === "stroke") client.send("opponentStroke", data);
+        else if (action === "undo") client.send("opponentStrokeUndo", {});
+        else client.send("opponentStrokeClear", {});
       }
     }
+  }
+
+  private handleChat(
+    client: Client,
+    data: { text?: string; name?: string },
+  ): void {
+    const text = typeof data?.text === "string" ? data.text.slice(0, 200) : "";
+    if (!text.trim()) return;
+    const isSpectator = this.spectators.has(client.sessionId);
+    const name =
+      data?.name?.slice(0, 30) ||
+      (isSpectator ? "Spectator" : this.state.players.get(client.sessionId)?.name || "Player");
+    this.broadcast("chat", {
+      sessionId: client.sessionId,
+      name,
+      text: text.trim(),
+    });
   }
 
   // ---- Message Handlers ----
@@ -188,10 +239,8 @@ export class GameRoom extends Room<GameStateSchema> {
     player.drawingSubmitted = true;
     this.playerDrawings.set(client.sessionId, data.imageData);
 
-    // Store ink spent for AI analysis
     if (data.inkSpent !== undefined) {
-      const inkSpentKey = `${client.sessionId}_inkSpent`;
-      (this as Record<string, number>)[inkSpentKey] = data.inkSpent;
+      this.playerInkSpent.set(client.sessionId, data.inkSpent);
     }
 
     let allSubmitted = true;
@@ -561,6 +610,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.battleSim = null;
     this.playerConfigs.clear();
     this.playerDrawings.clear();
+    this.playerInkSpent.clear();
     this.playerGestureMoves.clear();
     this.gestureCooldowns.clear();
     this.summonInk.clear();

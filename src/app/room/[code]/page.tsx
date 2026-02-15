@@ -12,6 +12,7 @@ import RevealScreen from "@/components/RevealScreen";
 import ResultScreen from "@/components/ResultScreen";
 import InkBar from "@/components/InkBar";
 import AbilityHUD from "@/components/AbilityHUD";
+import BattleChat from "@/components/BattleChat";
 import type { FighterConfig } from "@shared/types";
 import type { Stroke } from "@/lib/ink";
 import Link from "next/link";
@@ -513,6 +514,23 @@ export default function GameRoomPage() {
     });
   }, [roomCode]);
 
+  const spectatorUrl =
+    typeof window !== "undefined" && roomCode
+      ? `${window.location.origin}/room/${roomCode}/spectator`
+      : "";
+  const handleCopySpectatorLink = useCallback(() => {
+    if (spectatorUrl) {
+      navigator.clipboard.writeText(spectatorUrl).catch(() => {
+        const input = document.createElement("input");
+        input.value = spectatorUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        document.body.removeChild(input);
+      });
+    }
+  }, [spectatorUrl]);
+
   // Get my player data
   const myPlayer = players.get(mySessionId);
   const opponentPlayer = Array.from(players.values()).find(
@@ -613,6 +631,8 @@ export default function GameRoomPage() {
             inkBudget={inkBudget}
             drawingTimeLimit={drawingTimeLimit}
             isHost={code === "new"}
+            spectatorUrl={spectatorUrl}
+            onCopySpectatorLinkAsHost={handleCopySpectatorLink}
           />
         )}
 
@@ -911,6 +931,19 @@ export default function GameRoomPage() {
           />
         )}
       </div>
+
+      {/* Chat - fixed at bottom */}
+      {room && (
+        <div className="shrink-0 p-4 border-t border-gray-200 bg-white/95">
+          <div className="max-w-2xl mx-auto">
+            <BattleChat
+              room={room}
+              defaultName={myPlayer?.fighterName || myPlayer?.name || "Player"}
+              className="max-w-md"
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

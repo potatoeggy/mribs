@@ -12,6 +12,12 @@ interface LobbyProps {
   drawingTimeLimit: number;
   onConfigChange?: (config: { inkBudget: number; drawingTimeLimit: number }) => void;
   isHost?: boolean;
+  /** Spectator view: no ready/config, show spectator link */
+  isSpectator?: boolean;
+  onCopySpectatorLink?: () => void;
+  /** Host/player: show "Share spectator link" alongside room code */
+  spectatorUrl?: string;
+  onCopySpectatorLinkAsHost?: () => void;
 }
 
 export default function Lobby({
@@ -24,13 +30,31 @@ export default function Lobby({
   drawingTimeLimit,
   onConfigChange,
   isHost,
+  isSpectator = false,
+  onCopySpectatorLink,
+  spectatorUrl,
+  onCopySpectatorLinkAsHost,
 }: LobbyProps) {
   const [copied, setCopied] = useState(false);
+  const [copiedSpectator, setCopiedSpectator] = useState(false);
+  const [copiedSpectatorHost, setCopiedSpectatorHost] = useState(false);
 
   const handleCopy = () => {
     onCopyCode();
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopySpectator = () => {
+    onCopySpectatorLink?.();
+    setCopiedSpectator(true);
+    setTimeout(() => setCopiedSpectator(false), 2000);
+  };
+
+  const handleCopySpectatorAsHost = () => {
+    onCopySpectatorLinkAsHost?.();
+    setCopiedSpectatorHost(true);
+    setTimeout(() => setCopiedSpectatorHost(false), 2000);
   };
 
   return (
@@ -44,7 +68,9 @@ export default function Lobby({
 
       {/* Room code */}
       <div className="flex flex-col items-center gap-2">
-        <p className="font-hand text-lg text-gray-600">Room Code:</p>
+        <p className="font-hand text-lg text-gray-600">
+          {isSpectator ? "Watching Room:" : "Room Code:"}
+        </p>
         <button
           onClick={handleCopy}
           className="sketchy-button bg-white text-4xl font-hand font-bold tracking-[0.3em] px-8 py-4 border-2 border-gray-800 hover:bg-gray-100 transition-colors"
@@ -54,6 +80,14 @@ export default function Lobby({
         <p className="font-hand text-sm text-gray-400">
           {copied ? "Copied!" : "Click to copy"}
         </p>
+        {!isSpectator && spectatorUrl && onCopySpectatorLinkAsHost && (
+          <button
+            onClick={handleCopySpectatorAsHost}
+            className="font-hand text-sm px-3 py-1.5 rounded-lg bg-blue-100 border border-blue-400 text-blue-800 hover:bg-blue-200 transition-colors mt-1"
+          >
+            {copiedSpectatorHost ? "Copied!" : "📺 Copy spectator link"}
+          </button>
+        )}
       </div>
 
       {/* Player status */}
@@ -71,8 +105,18 @@ export default function Lobby({
         </div>
       </div>
 
+      {/* Spectator link */}
+      {isSpectator && onCopySpectatorLink && (
+        <button
+          onClick={handleCopySpectator}
+          className="font-hand text-sm px-4 py-2 rounded-lg bg-blue-100 border-2 border-blue-400 text-blue-800 hover:bg-blue-200 transition-colors"
+        >
+          {copiedSpectator ? "Copied!" : "📺 Copy spectator link"}
+        </button>
+      )}
+
       {/* Game config (host only) */}
-      {isHost && onConfigChange && (
+      {!isSpectator && isHost && onConfigChange && (
         <div className="flex flex-col items-center gap-3 p-4 border border-dashed border-gray-400 rounded-lg bg-white">
           <p className="font-hand text-lg font-bold text-gray-700">Game Settings</p>
           <div className="flex items-center gap-3">
@@ -108,24 +152,34 @@ export default function Lobby({
         </div>
       )}
 
-      {/* Ready button */}
-      <button
-        onClick={onReady}
-        disabled={isReady || playerCount < 2}
-        className={`sketchy-button font-hand text-2xl px-10 py-4 transition-all ${
-          isReady
-            ? "bg-green-300 border-green-600 text-green-800"
-            : playerCount < 2
-            ? "bg-gray-200 border-gray-400 text-gray-400"
-            : "bg-yellow-300 border-yellow-600 text-yellow-800 hover:bg-yellow-400 hover:scale-105"
-        }`}
-      >
-        {isReady ? "Ready!" : playerCount < 2 ? "Waiting for opponent..." : "Ready Up!"}
-      </button>
+      {/* Ready button (hidden for spectators) */}
+      {!isSpectator && (
+        <>
+          <button
+            onClick={onReady}
+            disabled={isReady || playerCount < 2}
+            className={`sketchy-button font-hand text-2xl px-10 py-4 transition-all ${
+              isReady
+                ? "bg-green-300 border-green-600 text-green-800"
+                : playerCount < 2
+                ? "bg-gray-200 border-gray-400 text-gray-400"
+                : "bg-yellow-300 border-yellow-600 text-yellow-800 hover:bg-yellow-400 hover:scale-105"
+            }`}
+          >
+            {isReady ? "Ready!" : playerCount < 2 ? "Waiting for opponent..." : "Ready Up!"}
+          </button>
 
-      {isReady && playerCount >= 2 && (
-        <p className="font-hand text-gray-500 animate-pulse">
-          Waiting for opponent to ready up...
+          {isReady && playerCount >= 2 && (
+            <p className="font-hand text-gray-500 animate-pulse">
+              Waiting for opponent to ready up...
+            </p>
+          )}
+        </>
+      )}
+
+      {isSpectator && (
+        <p className="font-hand text-gray-500">
+          👀 Spectating — waiting for players to start...
         </p>
       )}
     </div>
