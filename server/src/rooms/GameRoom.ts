@@ -51,6 +51,8 @@ export class GameRoom extends Room<GameStateSchema> {
   private playerGestureMoves: Map<string, GestureMove[]> = new Map();
   private gestureCooldowns: Map<string, number> = new Map(); // "sessionId" -> time until ready (global cooldown)
   private readonly GESTURE_COOLDOWN_SEC = 2;
+  /** Summon ink per player - only decreases on summon, not from battle sim (moves/abilities) */
+  private summonInk: Map<string, number> = new Map();
 
   maxClients = 2;
 
@@ -64,22 +66,41 @@ export class GameRoom extends Room<GameStateSchema> {
 
     // Apply room config options
     if (options.inkBudget) this.state.inkBudget = options.inkBudget as number;
-    if (options.drawingTimeLimit) this.state.drawingTimeLimit = options.drawingTimeLimit as number;
-    if (options.battleInkMax) this.state.battleInkMax = options.battleInkMax as number;
-    if (options.battleInkRegen) this.state.battleInkRegen = options.battleInkRegen as number;
+    if (options.drawingTimeLimit)
+      this.state.drawingTimeLimit = options.drawingTimeLimit as number;
+    if (options.battleInkMax)
+      this.state.battleInkMax = options.battleInkMax as number;
+    if (options.battleInkRegen)
+      this.state.battleInkRegen = options.battleInkRegen as number;
 
     // Register message handlers
     this.onMessage("ready", (client) => this.handleReady(client));
-    this.onMessage("submitDrawing", (client, data) => this.handleDrawingSubmit(client, data));
-    this.onMessage("fighterConfig", (client, data) => this.handleFighterConfig(client, data));
+    this.onMessage("submitDrawing", (client, data) =>
+      this.handleDrawingSubmit(client, data),
+    );
+    this.onMessage("fighterConfig", (client, data) =>
+      this.handleFighterConfig(client, data),
+    );
     this.onMessage("move", (client, data) => this.handleMove(client, data));
-    this.onMessage("ability", (client, data) => this.handleAbility(client, data));
-    this.onMessage("gestureAttack", (client, data) => this.handleGestureAttack(client, data));
+    this.onMessage("ability", (client, data) =>
+      this.handleAbility(client, data),
+    );
+    this.onMessage("gestureAttack", (client, data) =>
+      this.handleGestureAttack(client, data),
+    );
     this.onMessage("playAgain", () => this.resetToLobby());
-    this.onMessage("strokeUpdate", (client, data) => this.relayToOpponent(client, "opponentStroke", data));
-    this.onMessage("strokeUndo", (client) => this.relayToOpponent(client, "opponentStrokeUndo", {}));
-    this.onMessage("strokeClear", (client) => this.relayToOpponent(client, "opponentStrokeClear", {}));
-    this.onMessage("summonFighter", (client, data) => this.handleSummonFighter(client, data));
+    this.onMessage("strokeUpdate", (client, data) =>
+      this.relayToOpponent(client, "opponentStroke", data),
+    );
+    this.onMessage("strokeUndo", (client) =>
+      this.relayToOpponent(client, "opponentStrokeUndo", {}),
+    );
+    this.onMessage("strokeClear", (client) =>
+      this.relayToOpponent(client, "opponentStrokeClear", {}),
+    );
+    this.onMessage("summonFighter", (client, data) =>
+      this.handleSummonFighter(client, data),
+    );
 
     console.log(`Room ${this.state.roomCode} created`);
   }
@@ -95,7 +116,9 @@ export class GameRoom extends Room<GameStateSchema> {
 
     this.state.players.set(client.sessionId, player);
 
-    console.log(`${client.sessionId} joined room ${this.state.roomCode} (${player.teamColor})`);
+    console.log(
+      `${client.sessionId} joined room ${this.state.roomCode} (${player.teamColor})`,
+    );
   }
 
   onLeave(client: Client): void {
@@ -117,7 +140,11 @@ export class GameRoom extends Room<GameStateSchema> {
     console.log(`Room ${this.state.roomCode} disposed`);
   }
 
-  private relayToOpponent(sender: Client, messageType: string, data: unknown): void {
+  private relayToOpponent(
+    sender: Client,
+    messageType: string,
+    data: unknown,
+  ): void {
     if (this.state.phase !== "drawing") return;
     for (const client of this.clients) {
       if (client.sessionId !== sender.sessionId) {
@@ -145,7 +172,10 @@ export class GameRoom extends Room<GameStateSchema> {
     }
   }
 
-  private handleDrawingSubmit(client: Client, data: { imageData: string; spriteData?: string; inkSpent?: number }): void {
+  private handleDrawingSubmit(
+    client: Client,
+    data: { imageData: string; spriteData?: string; inkSpent?: number },
+  ): void {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
@@ -177,7 +207,11 @@ export class GameRoom extends Room<GameStateSchema> {
     if (this.state.phase !== "analyzing") return;
     this.playerConfigs.set(client.sessionId, config);
 
-    if (config.gestureMoves && Array.isArray(config.gestureMoves) && config.gestureMoves.length >= 2) {
+    if (
+      config.gestureMoves &&
+      Array.isArray(config.gestureMoves) &&
+      config.gestureMoves.length >= 2
+    ) {
       this.playerGestureMoves.set(
         client.sessionId,
         config.gestureMoves.slice(0, 3).map((m) => ({
@@ -185,7 +219,7 @@ export class GameRoom extends Room<GameStateSchema> {
           gesture: m.gesture,
           action: m.action,
           power: Math.max(5, Math.min(25, m.power)),
-        }))
+        })),
       );
     } else {
       this.playerGestureMoves.set(client.sessionId, [
@@ -201,7 +235,9 @@ export class GameRoom extends Room<GameStateSchema> {
       player.maxHp = config.health.maxHp;
       player.hp = config.health.maxHp;
       const moves = this.playerGestureMoves.get(client.sessionId) ?? [];
-      player.gestureMoveSummary = JSON.stringify(moves.map((m) => ({ action: m.action, power: m.power })));
+      player.gestureMoveSummary = JSON.stringify(
+        moves.map((m) => ({ action: m.action, power: m.power })),
+      );
 
       // Populate abilities
       player.abilities.clear();
@@ -227,17 +263,31 @@ export class GameRoom extends Room<GameStateSchema> {
     }
   }
 
-  private handleMove(client: Client, data: { targetX: number; targetY: number }): void {
+  private handleMove(
+    client: Client,
+    data: { targetX: number; targetY: number },
+  ): void {
     if (this.state.phase !== "battle" || !this.battleSim) return;
     this.battleSim.handleMove(client.sessionId, data.targetX, data.targetY);
   }
 
-  private handleAbility(client: Client, data: { abilityType: string; targetX?: number; targetY?: number }): void {
+  private handleAbility(
+    client: Client,
+    data: { abilityType: string; targetX?: number; targetY?: number },
+  ): void {
     if (this.state.phase !== "battle" || !this.battleSim) return;
-    this.battleSim.handleAbility(client.sessionId, data.abilityType, data.targetX, data.targetY);
+    this.battleSim.handleAbility(
+      client.sessionId,
+      data.abilityType,
+      data.targetX,
+      data.targetY,
+    );
   }
 
-  private handleGestureAttack(client: Client, data: { moveId: string; drawingData?: string }): void {
+  private handleGestureAttack(
+    client: Client,
+    data: { moveId: string; drawingData?: string },
+  ): void {
     if (this.state.phase !== "battle" || !this.battleSim) return;
     const moves = this.playerGestureMoves.get(client.sessionId);
     if (!moves) return;
@@ -249,7 +299,10 @@ export class GameRoom extends Room<GameStateSchema> {
     const readyAt = this.gestureCooldowns.get(key) ?? 0;
     if (now < readyAt) return;
 
-    const targetId = Array.from(this.state.players.keys()).find((id) => id !== client.sessionId) ?? null;
+    const targetId =
+      Array.from(this.state.players.keys()).find(
+        (id) => id !== client.sessionId,
+      ) ?? null;
 
     this.gestureCooldowns.set(key, now + this.GESTURE_COOLDOWN_SEC);
     this.battleSim.handleGestureAttack(client.sessionId, move.power);
@@ -266,47 +319,53 @@ export class GameRoom extends Room<GameStateSchema> {
     }
   }
 
-  private handleSummonFighter(client: Client, data: { config: FighterConfig; spriteData?: string; inkCost: number }): void {
+  private handleSummonFighter(
+    client: Client,
+    data: { config: FighterConfig; spriteData?: string; inkCost: number },
+  ): void {
     if (this.state.phase !== "battle" || !this.battleSim) return;
 
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    // Check ink cost for summoning (dynamic based on drawing)
     const inkCost = data.inkCost || 50;
-    if (player.ink < inkCost) {
+    const currentSummonInk = this.summonInk.get(client.sessionId) ?? 0;
+    if (currentSummonInk < inkCost) {
       client.send("summonFailed", { reason: "Not enough ink" });
       return;
     }
 
-    // Deduct ink from both schema and simulation
-    player.ink -= inkCost;
-    const fighter = this.battleSim.fighters.get(client.sessionId);
-    if (fighter) {
-      fighter.ink -= inkCost;
-    }
+    this.summonInk.set(client.sessionId, currentSummonInk - inkCost);
 
     // Generate unique fighter ID
     const fighterId = `${client.sessionId}_summon_${Date.now()}`;
 
     // Determine spawn position (near player's side)
-    const playerIndex = Array.from(this.state.players.keys()).indexOf(client.sessionId);
+    const playerIndex = Array.from(this.state.players.keys()).indexOf(
+      client.sessionId,
+    );
     const startX = playerIndex === 0 ? 200 : ARENA_WIDTH - 200;
     const facingRight = playerIndex === 0;
 
     // Add fighter to battle simulation
     // Summoned fighters get ink proportional to their creation cost
     const summonedInk = Math.floor(inkCost * 0.5); // 50% of creation ink
-    this.battleSim.addFighter(fighterId, client.sessionId, startX, facingRight, {
-      maxHp: data.config.health.maxHp,
-      movementSpeed: data.config.movement.speed,
-      abilities: data.config.abilities.map((a) => ({
-        type: a.type,
-        params: a.params as Record<string, number | string>,
-      })),
-      battleInkMax: summonedInk,
-      battleInkRegen: 0, // Summoned fighters don't regen ink
-    });
+    this.battleSim.addFighter(
+      fighterId,
+      client.sessionId,
+      startX,
+      facingRight,
+      {
+        maxHp: data.config.health.maxHp,
+        movementSpeed: data.config.movement.speed,
+        abilities: data.config.abilities.map((a) => ({
+          type: a.type,
+          params: a.params as Record<string, number | string>,
+        })),
+        battleInkMax: summonedInk,
+        battleInkRegen: 0, // Summoned fighters don't regen ink
+      },
+    );
 
     // Create schema entry for summoned fighter
     const summonedFighter = new SummonedFighterSchema();
@@ -322,10 +381,11 @@ export class GameRoom extends Room<GameStateSchema> {
     summonedFighter.teamColor = player.teamColor;
     this.state.summonedFighters.set(fighterId, summonedFighter);
 
-    // Broadcast the summon event
+    // Broadcast the summon event (inkCost so clients can update opponent ink bar)
     this.broadcast("fighterSummoned", {
       fighterId,
       ownerId: client.sessionId,
+      inkCost,
       config: data.config,
       spriteData: data.spriteData,
       x: startX,
@@ -334,7 +394,9 @@ export class GameRoom extends Room<GameStateSchema> {
       teamColor: player.teamColor, // Pass team color for rendering
     });
 
-    console.log(`Player ${client.sessionId} summoned fighter ${fighterId}: ${data.config.name} (cost: ${inkCost} ink)`);
+    console.log(
+      `Player ${client.sessionId} summoned fighter ${fighterId}: ${data.config.name} (cost: ${inkCost} ink)`,
+    );
   }
 
   // ---- Phase Transitions ----
@@ -437,6 +499,7 @@ export class GameRoom extends Room<GameStateSchema> {
       player.facingRight = facingRight;
       player.ink = this.state.battleInkMax;
       player.maxInk = this.state.battleInkMax;
+      this.summonInk.set(sessionId, this.state.battleInkMax);
 
       playerIndex++;
     });
@@ -488,7 +551,9 @@ export class GameRoom extends Room<GameStateSchema> {
       }
     }, 1000);
 
-    console.log(`Room ${this.state.roomCode}: Battle ended! Winner: ${winnerId}`);
+    console.log(
+      `Room ${this.state.roomCode}: Battle ended! Winner: ${winnerId}`,
+    );
   }
 
   private resetToLobby(): void {
@@ -498,6 +563,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.playerDrawings.clear();
     this.playerGestureMoves.clear();
     this.gestureCooldowns.clear();
+    this.summonInk.clear();
 
     this.state.phase = "lobby";
     this.state.timer = 0;
@@ -551,7 +617,11 @@ export class GameRoom extends Room<GameStateSchema> {
         player.shieldHp = fighter.shieldHp;
 
         // Sync ability cooldowns
-        for (let i = 0; i < player.abilities.length && i < fighter.abilities.length; i++) {
+        for (
+          let i = 0;
+          i < player.abilities.length && i < fighter.abilities.length;
+          i++
+        ) {
           const playerAbility = player.abilities.at(i);
           const fighterAbility = fighter.abilities[i];
           if (playerAbility && fighterAbility) {
@@ -568,7 +638,7 @@ export class GameRoom extends Room<GameStateSchema> {
     });
 
     // Remove dead summoned fighters
-    for (const [id, summonedFighter] of this.state.summonedFighters) {
+    for (const [id] of this.state.summonedFighters) {
       const fighter = this.battleSim.fighters.get(id);
       if (!fighter || fighter.isDead || fighter.hp <= 0) {
         this.state.summonedFighters.delete(id);
@@ -611,7 +681,10 @@ export class GameRoom extends Room<GameStateSchema> {
       movement: { speed: 3, type: "walk" },
       abilities: [
         { type: "melee", params: { damage: 15, range: 40, cooldown: 0.8 } },
-        { type: "fireProjectile", params: { damage: 10, cooldown: 1.5, speed: 5, label: "Ink Blast" } },
+        {
+          type: "fireProjectile",
+          params: { damage: 10, cooldown: 1.5, speed: 5, label: "Ink Blast" },
+        },
       ],
       spriteBounds: { x: 100, y: 50, width: 150, height: 150 },
       balanceScore: 5,

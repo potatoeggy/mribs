@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useEffect } from "react";
-import { Stroke, totalInkUsed, inkRemainingFraction } from "@/lib/ink";
+import { Stroke, totalInkUsed } from "@/lib/ink";
 import InkMeter from "./InkMeter";
 
 const LINE_WIDTHS = [2, 4, 6, 10];
@@ -10,7 +10,7 @@ const ERASER_WIDTH = 20;
 interface DrawingCanvasProps {
   inkBudget: number;
   onSubmit: (imageData: string, inkSpent: number) => void;
-  timeRemaining: number;
+  timeRemaining?: number; // Passed for compatibility; timer shown in parent
   disabled?: boolean;
   onStrokeComplete?: (stroke: Stroke) => void;
   onStrokeUndo?: () => void;
@@ -21,7 +21,7 @@ interface DrawingCanvasProps {
 export default function DrawingCanvas({
   inkBudget,
   onSubmit,
-  timeRemaining,
+  timeRemaining: _timeRemaining,
   disabled = false,
   onStrokeComplete,
   onStrokeUndo,
@@ -185,12 +185,6 @@ export default function DrawingCanvas({
     if (!canvas) return;
     const imageData = canvas.toDataURL("image/png");
     onSubmit(imageData, inkUsed);
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   return (

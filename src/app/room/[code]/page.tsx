@@ -58,7 +58,12 @@ interface PlayerData {
   spriteData: string;
   gestureMoveSummary: string;
   teamColor: string;
-  abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
+  abilities: {
+    abilityType: string;
+    cooldownRemaining: number;
+    cooldownMax: number;
+    label: string;
+  }[];
 }
 
 interface SummonedFighterData {
@@ -82,7 +87,9 @@ export default function GameRoomPage() {
   const [phase, setPhase] = useState<string>("connecting");
   const [timer, setTimer] = useState(0);
   const [players, setPlayers] = useState<Map<string, PlayerData>>(new Map());
-  const [summonedFighters, setSummonedFighters] = useState<Map<string, SummonedFighterData>>(new Map());
+  const [summonedFighters, setSummonedFighters] = useState<
+    Map<string, SummonedFighterData>
+  >(new Map());
   const [mySessionId, setMySessionId] = useState<string>("");
   const [roomCode, setRoomCode] = useState<string>("");
   const [winnerId, setWinnerId] = useState<string>("");
@@ -91,9 +98,13 @@ export default function GameRoomPage() {
   const [drawingTimeLimit, setDrawingTimeLimit] = useState(75);
 
   // Drawing and sprite data
-  const [myDrawingData, setMyDrawingData] = useState<string>("");
-  const [spriteDataMap, setSpriteDataMap] = useState<Map<string, string>>(new Map());
-  const [myFighterConfig, setMyFighterConfig] = useState<FighterConfig | null>(null);
+  const [, setMyDrawingData] = useState<string>("");
+  const [spriteDataMap, setSpriteDataMap] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const [myFighterConfig, setMyFighterConfig] = useState<FighterConfig | null>(
+    null,
+  );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [opponentStrokes, setOpponentStrokes] = useState<Stroke[]>([]);
   const [showResultScreen, setShowResultScreen] = useState(false);
@@ -107,6 +118,13 @@ export default function GameRoomPage() {
   const battleStartSpokenRef = useRef(false);
   const [drawingRoundKey, setDrawingRoundKey] = useState(0);
   const [battleCountdown, setBattleCountdown] = useState(0);
+  /** Summon ink from BattleWrapper (only changes on summon, not battle sim) */
+  const [mySummonInk, setMySummonInk] = useState<number | null>(null);
+  /** Opponent's summon ink (only decreases when they summon, not battle sim) */
+  const [opponentSummonInk, setOpponentSummonInk] = useState<number | null>(
+    null,
+  );
+  const opponentInkInitializedRef = useRef(false);
   const RESULT_DELAY_MS = 1700;
   const BATTLE_COUNTDOWN_SEC = 6;
 
@@ -162,8 +180,13 @@ export default function GameRoomPage() {
           setDrawingTimeLimit(state.drawingTimeLimit as number);
 
           const newPlayers = new Map<string, PlayerData>();
-          const newSummonedFighters = new Map<string, SummonedFighterData>();
-          (state.players as { forEach: (cb: (p: Record<string, unknown>, id: string) => void) => void }).forEach((p: Record<string, unknown>, id: string) => {
+          (
+            state.players as {
+              forEach: (
+                cb: (p: Record<string, unknown>, id: string) => void,
+              ) => void;
+            }
+          ).forEach((p: Record<string, unknown>, id: string) => {
             newPlayers.set(id, {
               id: p.id as string,
               name: p.name as string,
@@ -182,18 +205,38 @@ export default function GameRoomPage() {
               spriteData: p.spriteData as string,
               gestureMoveSummary: (p.gestureMoveSummary as string) || "",
               teamColor: (p.teamColor as string) || "#1a1a1a",
-              abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
-                abilityType: a.abilityType as string,
-                cooldownRemaining: a.cooldownRemaining as number,
-                cooldownMax: a.cooldownMax as number,
-                label: a.label as string,
-              })) || [],
+              abilities:
+                (
+                  p.abilities as Array<Record<string, unknown>> | undefined
+                )?.map((a: Record<string, unknown>) => ({
+                  abilityType: a.abilityType as string,
+                  cooldownRemaining: a.cooldownRemaining as number,
+                  cooldownMax: a.cooldownMax as number,
+                  label: a.label as string,
+                })) || [],
             });
           });
           setPlayers(newPlayers);
 
-          // Parse summoned fighters
-          (state.summonedFighters as { forEach: (cb: (f: Record<string, unknown>, id: string) => void) => void })?.forEach((f: Record<string, unknown>, id: string) => {
+          // Init opponent summon ink when first entering battle (only decreases when they summon)
+          if (newPhase === "battle" && !opponentInkInitializedRef.current) {
+            const opp = Array.from(newPlayers.values()).find(
+              (p) => p.id !== r.sessionId,
+            );
+            if (opp) {
+              setOpponentSummonInk(opp.ink);
+              opponentInkInitializedRef.current = true;
+            }
+          }
+
+          const newSummonedFighters = new Map<string, SummonedFighterData>();
+          (
+            state.summonedFighters as {
+              forEach: (
+                cb: (f: Record<string, unknown>, id: string) => void,
+              ) => void;
+            }
+          )?.forEach((f: Record<string, unknown>, id: string) => {
             newSummonedFighters.set(id, {
               id: f.id as string,
               ownerId: f.ownerId as string,
@@ -211,7 +254,12 @@ export default function GameRoomPage() {
         });
 
         r.onMessage("startAnalysis", () => {
-          console.log("[startAnalysis] received, drawingData length:", myDrawingDataRef.current?.length || 0, "ink spent:", myInkSpentRef.current);
+          console.log(
+            "[startAnalysis] received, drawingData length:",
+            myDrawingDataRef.current?.length || 0,
+            "ink spent:",
+            myInkSpentRef.current,
+          );
           if (myDrawingDataRef.current) {
             analyzeDrawing(r, myDrawingDataRef.current, myInkSpentRef.current);
           }
@@ -232,6 +280,23 @@ export default function GameRoomPage() {
           setOpponentStrokes([]);
         });
 
+        r.onMessage(
+          "fighterSummoned",
+          (data: { ownerId?: string; inkCost?: number }) => {
+            if (!mounted) return;
+            const inkCost = data.inkCost;
+            if (
+              data.ownerId &&
+              data.ownerId !== r.sessionId &&
+              typeof inkCost === "number"
+            ) {
+              setOpponentSummonInk((prev) =>
+                prev != null ? Math.max(0, prev - inkCost) : prev,
+              );
+            }
+          },
+        );
+
         r.onError((code, message) => {
           console.error("Room error:", code, message);
           setError(`Connection error: ${message}`);
@@ -245,7 +310,9 @@ export default function GameRoomPage() {
       } catch (err) {
         if (mounted) {
           console.error("Failed to connect:", err);
-          setError(`Failed to connect: ${err instanceof Error ? err.message : "Unknown error"}`);
+          setError(
+            `Failed to connect: ${err instanceof Error ? err.message : "Unknown error"}`,
+          );
           setPhase("error");
         }
       }
@@ -265,6 +332,15 @@ export default function GameRoomPage() {
   useEffect(() => {
     if (phase === "drawing") {
       setOpponentStrokes([]);
+    }
+  }, [phase]);
+
+  // Reset summon ink display when leaving battle (BattleWrapper will re-report when re-entering)
+  useEffect(() => {
+    if (phase !== "battle" && phase !== "result") {
+      setMySummonInk(null);
+      setOpponentSummonInk(null);
+      opponentInkInitializedRef.current = false;
     }
   }, [phase]);
 
@@ -360,7 +436,15 @@ export default function GameRoomPage() {
           movement: { speed: 3, type: "walk" },
           abilities: [
             { type: "melee", params: { damage: 15, range: 40, cooldown: 0.8 } },
-            { type: "fireProjectile", params: { damage: 10, cooldown: 1.5, speed: 5, label: "Ink Blast" } },
+            {
+              type: "fireProjectile",
+              params: {
+                damage: 10,
+                cooldown: 1.5,
+                speed: 5,
+                label: "Ink Blast",
+              },
+            },
           ],
           spriteBounds: { x: 0, y: 0, width: 100, height: 100 },
           balanceScore: 5,
@@ -382,7 +466,7 @@ export default function GameRoomPage() {
         setIsAnalyzing(false);
       }
     },
-    []
+    [],
   );
 
   // Handle drawing submission
@@ -395,7 +479,7 @@ export default function GameRoomPage() {
         room.send("submitDrawing", { imageData, inkSpent });
       }
     },
-    [room]
+    [room],
   );
 
   // Handle ready up
@@ -431,10 +515,9 @@ export default function GameRoomPage() {
 
   // Get my player data
   const myPlayer = players.get(mySessionId);
-  const opponentPlayer = Array.from(players.values()).find((p) => p.id !== mySessionId);
-
-  // Get available abilities for battle controls
-  const myAbilities = myPlayer?.abilities?.map((a) => a.abilityType) || [];
+  const opponentPlayer = Array.from(players.values()).find(
+    (p) => p.id !== mySessionId,
+  );
 
   useEffect(() => {
     setSpriteDataMap((prev) => {
@@ -458,8 +541,13 @@ export default function GameRoomPage() {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen gap-6 p-8">
         <h1 className="text-4xl font-bold text-red-500">Oops!</h1>
-        <p className="text-xl text-gray-600">{error || "Something went wrong"}</p>
-        <Link href="/" className="sketchy-button bg-yellow-300 px-6 py-3 text-xl">
+        <p className="text-xl text-gray-600">
+          {error || "Something went wrong"}
+        </p>
+        <Link
+          href="/"
+          className="sketchy-button bg-yellow-300 px-6 py-3 text-xl"
+        >
           Back to Home
         </Link>
       </main>
@@ -482,7 +570,10 @@ export default function GameRoomPage() {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen gap-6 p-8">
         <h1 className="text-4xl font-bold text-gray-500">Disconnected</h1>
-        <Link href="/" className="sketchy-button bg-yellow-300 px-6 py-3 text-xl">
+        <Link
+          href="/"
+          className="sketchy-button bg-yellow-300 px-6 py-3 text-xl"
+        >
           Back to Home
         </Link>
       </main>
@@ -493,7 +584,10 @@ export default function GameRoomPage() {
     <main className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-gray-300">
-        <Link href="/" className="text-2xl font-bold text-gray-800 hover:text-gray-600">
+        <Link
+          href="/"
+          className="text-2xl font-bold text-gray-800 hover:text-gray-600"
+        >
           Scribble Fighters
         </Link>
         <div className="flex items-center gap-4">
@@ -526,12 +620,19 @@ export default function GameRoomPage() {
         {phase === "drawing" && (
           <div className="flex-1 flex flex-col p-4 gap-2">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800">Draw your champion!</h2>
-              <div className="font-hand text-2xl font-bold tabular-nums">{Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, "0")}</div>
+              <h2 className="text-2xl font-bold text-gray-800">
+                Draw your champion!
+              </h2>
+              <div className="font-hand text-2xl font-bold tabular-nums">
+                {Math.floor(timer / 60)}:
+                {(timer % 60).toString().padStart(2, "0")}
+              </div>
             </div>
             <div className="flex gap-4 flex-1 min-h-0">
               <div className="flex-1 flex flex-col min-w-0">
-                <p className="font-hand text-base text-gray-500 text-center mb-1">Your Drawing</p>
+                <p className="font-hand text-base text-gray-500 text-center mb-1">
+                  Your Drawing
+                </p>
                 <div className="flex-1 min-h-0">
                   <DrawingCanvas
                     key={`drawing-${drawingRoundKey}`}
@@ -539,7 +640,9 @@ export default function GameRoomPage() {
                     onSubmit={handleDrawingSubmit}
                     timeRemaining={timer}
                     disabled={myPlayer?.drawingSubmitted || false}
-                    onStrokeComplete={(stroke) => room?.send("strokeUpdate", stroke)}
+                    onStrokeComplete={(stroke) =>
+                      room?.send("strokeUpdate", stroke)
+                    }
                     onStrokeUndo={() => room?.send("strokeUndo", {})}
                     onStrokeClear={() => room?.send("strokeClear", {})}
                     teamColor={myPlayer?.teamColor || "#1a1a1a"}
@@ -547,7 +650,9 @@ export default function GameRoomPage() {
                 </div>
               </div>
               <div className="flex-1 flex flex-col min-w-0">
-                <p className="font-hand text-base text-gray-500 text-center mb-1">{opponentPlayer?.name || "Opponent"}&apos;s Drawing</p>
+                <p className="font-hand text-base text-gray-500 text-center mb-1">
+                  {opponentPlayer?.name || "Opponent"}&apos;s Drawing
+                </p>
                 <div className="flex-1 min-h-0">
                   <OpponentCanvas strokes={opponentStrokes} />
                 </div>
@@ -569,7 +674,8 @@ export default function GameRoomPage() {
             {isAnalyzing ? (
               <>
                 <h2 className="text-4xl font-bold text-gray-800 animate-pulse">
-                  AI is analyzing your creation<span className="loading-dots"></span>
+                  AI is analyzing your creation
+                  <span className="loading-dots"></span>
                 </h2>
                 <div className="wobble">
                   <svg width="80" height="80" viewBox="0 0 80 80">
@@ -596,26 +702,46 @@ export default function GameRoomPage() {
               </>
             ) : (
               <div className="flex flex-col items-center gap-6 w-full max-w-3xl">
-                <h2 className="text-3xl font-bold text-gray-800">The AI sees...</h2>
+                <h2 className="text-3xl font-bold text-gray-800">
+                  The AI sees...
+                </h2>
                 {timer > 0 && (
-                  <p className="text-lg text-gray-500">Battle starts in {timer}s</p>
+                  <p className="text-lg text-gray-500">
+                    Battle starts in {timer}s
+                  </p>
                 )}
                 <div className="flex gap-8 w-full justify-center">
                   {Array.from(players.values()).map((p) => {
                     const isMe = p.id === mySessionId;
                     let moves: GestureMoveSummary[] = [];
                     try {
-                      if (p.gestureMoveSummary) moves = JSON.parse(p.gestureMoveSummary) as GestureMoveSummary[];
+                      if (p.gestureMoveSummary)
+                        moves = JSON.parse(
+                          p.gestureMoveSummary,
+                        ) as GestureMoveSummary[];
                     } catch {
                       if (isMe && myFighterConfig?.gestureMoves?.length) {
-                        moves = myFighterConfig.gestureMoves.map((m) => ({ action: m.action, power: m.power }));
+                        moves = myFighterConfig.gestureMoves.map((m) => ({
+                          action: m.action,
+                          power: m.power,
+                        }));
                       }
                     }
-                    if (isMe && myFighterConfig?.gestureMoves?.length && moves.length === 0) {
-                      moves = myFighterConfig.gestureMoves.map((m) => ({ action: m.action, power: m.power }));
+                    if (
+                      isMe &&
+                      myFighterConfig?.gestureMoves?.length &&
+                      moves.length === 0
+                    ) {
+                      moves = myFighterConfig.gestureMoves.map((m) => ({
+                        action: m.action,
+                        power: m.power,
+                      }));
                     }
                     return (
-                      <div key={p.id} className="flex-1 flex flex-col items-center gap-3 border border-gray-300 rounded-lg p-5 bg-white max-w-xs">
+                      <div
+                        key={p.id}
+                        className="flex-1 flex flex-col items-center gap-3 border border-gray-300 rounded-lg p-5 bg-white max-w-xs"
+                      >
                         {spriteDataMap.get(p.id) ? (
                           <img
                             src={spriteDataMap.get(p.id)}
@@ -627,17 +753,25 @@ export default function GameRoomPage() {
                             analyzing...
                           </div>
                         )}
-                        <p className="font-bold text-xl text-gray-800">{p.fighterName || p.name}</p>
-                        <p className="text-gray-600 text-sm text-center">{p.fighterDescription || "Waiting for analysis..."}</p>
+                        <p className="font-bold text-xl text-gray-800">
+                          {p.fighterName || p.name}
+                        </p>
+                        <p className="text-gray-600 text-sm text-center">
+                          {p.fighterDescription || "Waiting for analysis..."}
+                        </p>
                         <div className="w-full text-xs text-gray-500 space-y-0.5">
                           <p>HP: {p.maxHp}</p>
                           {moves.length > 0 && (
                             <>
-                              <p className="font-semibold text-gray-600">Attacks</p>
+                              <p className="font-semibold text-gray-600">
+                                Attacks
+                              </p>
                               <ul className="list-none space-y-0.5">
                                 {moves.map((m, i) => (
                                   <li key={i}>
-                                    {isMe ? `${m.action} (${m.power} dmg)` : m.action}
+                                    {isMe
+                                      ? `${m.action} (${m.power} dmg)`
+                                      : m.action}
                                   </li>
                                 ))}
                               </ul>
@@ -654,7 +788,9 @@ export default function GameRoomPage() {
         )}
 
         {/* REVEAL + BATTLE: shared wrapper so LiveCommentator stays mounted and connects during reveal */}
-        {(phase === "reveal" || phase === "battle" || (phase === "result" && !showResultScreen)) && (
+        {(phase === "reveal" ||
+          phase === "battle" ||
+          (phase === "result" && !showResultScreen)) && (
           <div className="flex-1 flex flex-col">
             {phase === "reveal" && (
               <RevealScreen
@@ -662,73 +798,88 @@ export default function GameRoomPage() {
                   name: myPlayer?.fighterName || "Your Fighter",
                   description: myPlayer?.fighterDescription || "",
                   maxHp: myPlayer?.maxHp || 100,
-                  abilities: myPlayer?.abilities?.map((a) => a.label || a.abilityType) || [],
+                  abilities:
+                    myPlayer?.abilities?.map((a) => a.label || a.abilityType) ||
+                    [],
                   spriteData: spriteDataMap.get(mySessionId),
                 }}
                 fighter2={{
                   name: opponentPlayer?.fighterName || "Opponent",
                   description: opponentPlayer?.fighterDescription || "",
                   maxHp: opponentPlayer?.maxHp || 100,
-                  abilities: opponentPlayer?.abilities?.map((a) => a.label || a.abilityType) || [],
-                  spriteData: opponentPlayer?.id ? spriteDataMap.get(opponentPlayer.id) : undefined,
+                  abilities:
+                    opponentPlayer?.abilities?.map(
+                      (a) => a.label || a.abilityType,
+                    ) || [],
+                  spriteData: opponentPlayer?.id
+                    ? spriteDataMap.get(opponentPlayer.id)
+                    : undefined,
                 }}
                 timer={timer}
               />
             )}
-            {(phase === "battle" || (phase === "result" && !showResultScreen)) && room && (
-          <div className="flex-1 flex flex-col gap-3 p-4">
-            {/* Ink bars row */}
-            <div className="flex items-start justify-between gap-4 px-4 flex-wrap">
-              <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
-              <InkBar
-                ink={myPlayer?.ink || 0}
-                maxInk={myPlayer?.maxInk || 6000}
-                name={myPlayer?.fighterName || "You"}
-                side="left"
-                color={myPlayer?.teamColor || "#ef4444"}
-              />
-              <span className="text-2xl font-bold text-gray-400 mt-2">VS</span>
-              <InkBar
-                ink={opponentPlayer?.ink || 0}
-                maxInk={opponentPlayer?.maxInk || 6000}
-                name={opponentPlayer?.fighterName || "Opponent"}
-                side="right"
-                color={opponentPlayer?.teamColor || "#3b82f6"}
-              />
-              </div>
-            </div>
+            {(phase === "battle" ||
+              (phase === "result" && !showResultScreen)) &&
+              room && (
+                <div className="flex-1 flex flex-col gap-3 p-4">
+                  {/* Ink bars row */}
+                  <div className="flex items-start justify-between gap-4 px-4 flex-wrap">
+                    <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
+                      <InkBar
+                        ink={mySummonInk ?? myPlayer?.ink ?? 0}
+                        maxInk={myPlayer?.maxInk || 6000}
+                        name={myPlayer?.fighterName || "You"}
+                        side="left"
+                        color={myPlayer?.teamColor || "#ef4444"}
+                      />
+                      <span className="text-2xl font-bold text-gray-400 mt-2">
+                        VS
+                      </span>
+                      <InkBar
+                        ink={opponentSummonInk ?? opponentPlayer?.ink ?? 0}
+                        maxInk={opponentPlayer?.maxInk || 6000}
+                        name={opponentPlayer?.fighterName || "Opponent"}
+                        side="right"
+                        color={opponentPlayer?.teamColor || "#3b82f6"}
+                      />
+                    </div>
+                  </div>
 
-            {/* Battle Arena + Gesture controls (tap/swipe on arena, draw below) */}
-            <BattleWrapper
-              room={room}
-              mySessionId={mySessionId}
-              playerAbilities={myAbilities}
-              spriteDataMap={spriteDataMap}
-              summonedFighters={summonedFighters}
-              gestureMoves={phase === "battle" ? (myFighterConfig?.gestureMoves ?? []) : []}
-              onCommentary={(!COMMENTATOR_HOST_ONLY || code === "new") ? (line) => commentatorRef.current?.speak(line) : undefined}
-              battleCountdownRemaining={battleCountdown}
-            />
+                  {/* Battle Arena + Gesture controls (tap/swipe on arena, draw below) */}
+                  <BattleWrapper
+                    room={room}
+                    mySessionId={mySessionId}
+                    spriteDataMap={spriteDataMap}
+                    summonedFighters={summonedFighters}
+                    onCommentary={
+                      !COMMENTATOR_HOST_ONLY || code === "new"
+                        ? (line) => commentatorRef.current?.speak(line)
+                        : undefined
+                    }
+                    battleCountdownRemaining={battleCountdown}
+                    onSummonInkChange={setMySummonInk}
+                  />
 
-            {/* Legacy Ability HUD (hidden when using gesture moves) */}
-            {phase === "battle" && (!myFighterConfig?.gestureMoves?.length) && (
-              <div className="flex justify-center">
-                <AbilityHUD
-                  abilities={
-                    myPlayer?.abilities?.map((a) => ({
-                      type: a.abilityType,
-                      label: a.label || a.abilityType,
-                      cooldownRemaining: a.cooldownRemaining,
-                      cooldownMax: a.cooldownMax,
-                    })) || []
-                  }
-                  ink={myPlayer?.ink || 0}
-                  maxInk={myPlayer?.maxInk || 100}
-                />
-              </div>
-            )}
-          </div>
-            )}
+                  {/* Legacy Ability HUD (hidden when using gesture moves) */}
+                  {phase === "battle" &&
+                    !myFighterConfig?.gestureMoves?.length && (
+                      <div className="flex justify-center">
+                        <AbilityHUD
+                          abilities={
+                            myPlayer?.abilities?.map((a) => ({
+                              type: a.abilityType,
+                              label: a.label || a.abilityType,
+                              cooldownRemaining: a.cooldownRemaining,
+                              cooldownMax: a.cooldownMax,
+                            })) || []
+                          }
+                          ink={myPlayer?.ink || 0}
+                          maxInk={myPlayer?.maxInk || 100}
+                        />
+                      </div>
+                    )}
+                </div>
+              )}
             {(!COMMENTATOR_HOST_ONLY || code === "new") && (
               <div className="flex justify-end px-4 pb-2 shrink-0">
                 <LiveCommentator
@@ -748,7 +899,12 @@ export default function GameRoomPage() {
             winnerId={winnerId}
             mySessionId={mySessionId}
             playerNames={
-              new Map(Array.from(players.entries()).map(([id, p]) => [id, p.fighterName || p.name]))
+              new Map(
+                Array.from(players.entries()).map(([id, p]) => [
+                  id,
+                  p.fighterName || p.name,
+                ]),
+              )
             }
             onPlayAgain={handlePlayAgain}
             timer={timer}

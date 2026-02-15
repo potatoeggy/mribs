@@ -86,15 +86,15 @@ export default function Home() {
         <h2 className="text-2xl font-bold text-gray-700">How to Play</h2>
         <div className="flex flex-col gap-2 text-lg text-gray-500 text-center">
           <p>1. Create or join a room with a friend</p>
-          <p>2. Draw your creature and its attacks using your trackpad</p>
-          <p>3. AI analyzes your drawing and brings it to life</p>
-          <p>4. Battle in real-time using gestures to control your creation!</p>
+          <p>2. Draw your creature—the AI brings it to life with unique abilities</p>
+          <p>3. Watch your champions battle in real-time (they fight on their own!)</p>
+          <p>4. Summon reinforcements during battle using ink—draw new fighters to turn the tide and win!</p>
         </div>
       </div>
 
       {/* Footer */}
       <p className="text-sm text-gray-300 mt-8">
-        Tip: Draw wings for flying, add &quot;+fire&quot; for fire attacks, draw a shield for defense!
+        Tip: Spend ink wisely when drawing—you&apos;ll use it to summon reinforcements in battle!
       </p>
     </main>
   );

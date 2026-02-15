@@ -17,7 +17,7 @@ interface SpriteBounds {
 export function extractSprite(
   canvasDataUrl: string,
   bounds: SpriteBounds,
-  maxSize: number = 200
+  maxSize: number = 400
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
