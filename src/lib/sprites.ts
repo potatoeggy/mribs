@@ -127,13 +127,19 @@ export function autoDetectBounds(canvasDataUrl: string): Promise<SpriteBounds> {
         }
       }
 
-      // Add padding
+      if (minX > maxX || minY > maxY) {
+        resolve({ x: 0, y: 0, width: canvas.width, height: canvas.height });
+        return;
+      }
+
       const padding = 10;
+      const bx = Math.max(0, minX - padding);
+      const by = Math.max(0, minY - padding);
       resolve({
-        x: Math.max(0, minX - padding),
-        y: Math.max(0, minY - padding),
-        width: Math.min(canvas.width, maxX - minX + padding * 2),
-        height: Math.min(canvas.height, maxY - minY + padding * 2),
+        x: bx,
+        y: by,
+        width: Math.min(canvas.width - bx, maxX - minX + padding * 2),
+        height: Math.min(canvas.height - by, maxY - minY + padding * 2),
       });
     };
     img.onerror = () => reject(new Error("Failed to load image"));

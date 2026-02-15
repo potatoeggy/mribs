@@ -266,8 +266,7 @@ export default function BattleWrapper({
 
       const { config } = await response.json();
 
-      // Extract sprite from the drawing (async now)
-      const spriteData = await extractSprite(imageData, config.spriteBounds);
+      const spriteData = await extractSprite(imageData);
 
       // Add to history
       setSummonHistory(prev => [...prev, { imageData, inkCost: inkSpent, config, spriteData }]);
@@ -294,29 +293,12 @@ export default function BattleWrapper({
     });
   }, [room, summonHistory, myInk]);
 
-  const extractSprite = async (imageData: string, bounds: { x: number; y: number; width: number; height: number }): Promise<string> => {
+  const extractSprite = async (imageData: string): Promise<string> => {
     try {
-      // Add generous padding to bounds to ensure we capture the full drawing
-      const padding = 20;
-      const paddedBounds = {
-        x: Math.max(0, bounds.x - padding),
-        y: Math.max(0, bounds.y - padding),
-        width: bounds.width + padding * 2,
-        height: bounds.height + padding * 2,
-      };
-
-      // Use the library function which handles transparency properly
-      return await extractSpriteLib(imageData, paddedBounds);
-    } catch (error) {
-      console.error("Failed to extract sprite, falling back to auto-detect:", error);
-      // Fallback: auto-detect bounds and try again
-      try {
-        const detectedBounds = await autoDetectBounds(imageData);
-        return await extractSpriteLib(imageData, detectedBounds);
-      } catch {
-        // Final fallback: return original image
-        return imageData;
-      }
+      const detectedBounds = await autoDetectBounds(imageData);
+      return await extractSpriteLib(imageData, detectedBounds);
+    } catch {
+      return imageData;
     }
   };
 
