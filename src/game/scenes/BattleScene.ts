@@ -75,9 +75,10 @@ export class BattleScene extends Phaser.Scene {
 
   playSound(key: string, volume: number = 0.4): void {
     // Play procedural sound effects using Web Audio API
-    if (!this.sys.game?.sound?.context) return;
+    const soundManager = this.sys.game?.sound;
+    if (!soundManager || !("context" in soundManager)) return;
 
-    const context = this.sys.game.sound.context as AudioContext;
+    const context = (soundManager as { context: AudioContext }).context;
     const oscillator = context.createOscillator();
     const gainNode = context.createGain();
 
