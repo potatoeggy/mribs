@@ -392,13 +392,13 @@ export default function SpectatorPage() {
   if (phase === "error" || error) {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen gap-6 p-8">
-        <h1 className="text-4xl font-bold text-red-500">Oops!</h1>
-        <p className="text-xl text-gray-600">
+        <h1 className="font-hand text-4xl font-bold text-red-500 shake">Oops!</h1>
+        <p className="font-hand text-xl text-gray-600 text-center">
           {error || "Something went wrong"}
         </p>
         <Link
           href="/"
-          className="sketchy-button bg-yellow-300 px-6 py-3 text-xl"
+          className="sketchy-button bg-yellow-300 px-6 py-3 text-xl font-hand hover:bg-yellow-400 hover:shadow-[4px_4px_0_#1a1a1a] transition-all hover:-translate-y-0.5"
         >
           Back to Home
         </Link>
@@ -409,9 +409,16 @@ export default function SpectatorPage() {
   if (phase === "connecting") {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <h1 className="text-4xl font-bold text-gray-600 animate-pulse">
+        <h1 className="font-hand text-4xl font-bold text-gray-600 animate-pulse">
           Connecting as spectator<span className="loading-dots"></span>
         </h1>
+        <div className="wobble mt-4">
+          <svg width="60" height="60" viewBox="0 0 80 80" className="opacity-40">
+            <circle cx="40" cy="40" r="30" fill="none" stroke="#1a1a1a" strokeWidth="3" strokeDasharray="10 5">
+              <animateTransform attributeName="transform" type="rotate" from="0 40 40" to="360 40 40" dur="1.5s" repeatCount="indefinite" />
+            </circle>
+          </svg>
+        </div>
       </main>
     );
   }
@@ -419,10 +426,10 @@ export default function SpectatorPage() {
   if (phase === "disconnected") {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen gap-6 p-8">
-        <h1 className="text-4xl font-bold text-gray-500">Disconnected</h1>
+        <h1 className="font-hand text-4xl font-bold text-gray-500">Disconnected</h1>
         <Link
           href="/"
-          className="sketchy-button bg-yellow-300 px-6 py-3 text-xl"
+          className="sketchy-button bg-yellow-300 px-6 py-3 text-xl font-hand hover:bg-yellow-400 hover:shadow-[4px_4px_0_#1a1a1a] transition-all hover:-translate-y-0.5"
         >
           Back to Home
         </Link>
@@ -432,15 +439,15 @@ export default function SpectatorPage() {
 
   return (
     <main className="flex flex-col h-screen overflow-hidden">
-      <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-300">
+      <header className="shrink-0 flex items-center justify-between px-6 py-3 border-b-2 border-gray-300 bg-white/80 backdrop-blur-sm shadow-[0_2px_0_rgba(0,0,0,0.05)]">
         <Link
           href="/"
-          className="text-2xl font-bold text-gray-800 hover:text-gray-600"
+          className="font-hand text-2xl font-bold text-gray-800 hover:text-gray-600 transition-colors duration-200"
         >
           Scribble Fighters
         </Link>
         <div className="flex items-center gap-4">
-          <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-hand text-sm font-bold">
+          <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-hand text-sm font-bold border-2 border-blue-200 animate-pulse">
             👀 SPECTATOR
           </span>
           <span className="text-sm text-gray-500">
@@ -469,9 +476,9 @@ export default function SpectatorPage() {
           )}
 
           {phase === "drawing" && (
-            <div className="flex-1 flex flex-col p-4 gap-2">
+            <div className="flex-1 flex flex-col p-4 gap-2 animate-fade-in-up">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-800">
+                <h2 className="font-hand text-2xl font-bold text-gray-800">
                   Watch them draw!
                 </h2>
                 <div className="font-hand text-2xl font-bold tabular-nums">
@@ -498,8 +505,8 @@ export default function SpectatorPage() {
           )}
 
           {phase === "analyzing" && (
-            <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8">
-              <h2 className="text-4xl font-bold text-gray-800">
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 animate-fade-in-up">
+              <h2 className="font-hand text-4xl font-bold text-gray-800 animate-pulse">
                 AI is analyzing...
               </h2>
               {timer > 0 && (

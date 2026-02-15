@@ -577,13 +577,17 @@ export default function BattleWrapper({
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
-      <div
-        className="relative w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
-      >
+        <div
+          className="relative w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-[6px_6px_0_rgba(0,0,0,0.2)] hover:shadow-[8px_8px_0_rgba(0,0,0,0.25)] transition-shadow duration-300"
+        >
         <div ref={containerRef} className="absolute inset-0" />
         {battleCountdownRemaining > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none z-10">
-            <div className="font-hand text-5xl font-bold text-white drop-shadow-lg text-center animate-pulse">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none z-10 backdrop-blur-[2px]">
+            <div
+              className={`font-hand text-5xl font-bold text-white text-center drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] ${
+                battleCountdownRemaining <= 1 ? "animate-start-explode" : "animate-pulse"
+              }`}
+            >
               {battleCountdownRemaining > 5
                 ? "Ready..."
                 : battleCountdownRemaining > 4

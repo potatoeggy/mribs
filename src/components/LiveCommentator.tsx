@@ -226,7 +226,7 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
 
     return (
       <div
-        className={`flex flex-col items-center gap-2 rounded-xl border-2 border-gray-300 bg-white/95 p-3 shadow-lg ${className}`}
+        className={`flex flex-col items-center gap-2 rounded-xl border-2 border-gray-300 bg-white/95 backdrop-blur-sm p-3 shadow-[4px_4px_0_rgba(0,0,0,0.1)] hover:shadow-[6px_6px_0_rgba(0,0,0,0.15)] transition-all duration-300 ${className}`}
       >
         <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-gray-900">
           <video
