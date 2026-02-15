@@ -256,20 +256,20 @@ export default function GameRoomPage() {
           }
         });
 
-        r.onMessage("opponentStroke", (stroke: Stroke) => {
-          if (!mounted) return;
-          setOpponentStrokes((prev) => [...prev, stroke]);
-        });
-
-        r.onMessage("opponentStrokeUndo", () => {
-          if (!mounted) return;
-          setOpponentStrokes((prev) => prev.slice(0, -1));
-        });
-
-        r.onMessage("opponentStrokeClear", () => {
-          if (!mounted) return;
-          setOpponentStrokes([]);
-        });
+        r.onMessage(
+          "drawingStroke",
+          (data: { ownerId: string; action: string; stroke?: Stroke }) => {
+            if (!mounted) return;
+            if (data.ownerId === r.sessionId) return;
+            if (data.action === "stroke" && data.stroke) {
+              setOpponentStrokes((prev) => [...prev, data.stroke!]);
+            } else if (data.action === "undo") {
+              setOpponentStrokes((prev) => prev.slice(0, -1));
+            } else if (data.action === "clear") {
+              setOpponentStrokes([]);
+            }
+          },
+        );
 
         r.onMessage(
           "fighterSummoned",

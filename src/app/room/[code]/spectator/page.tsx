@@ -200,10 +200,10 @@ export default function SpectatorPage() {
           } else {
             setShowResultScreen(false);
           }
-          if (newPhase === "lobby") {
+          if (newPhase === "lobby" && prevPhase !== "lobby") {
             s.setStrokesMap(new Map());
           }
-          if (newPhase === "drawing") {
+          if (newPhase === "drawing" && prevPhase !== "drawing") {
             s.setStrokesMap(new Map());
           }
           if (newPhase !== "battle" && newPhase !== "result") {
@@ -212,7 +212,7 @@ export default function SpectatorPage() {
             playerInkInitializedRef.current = false;
             s.setBattleCountdown(0);
           }
-          if (newPhase === "battle") {
+          if (newPhase === "battle" && prevPhase !== "battle") {
             battleCountdownStartRef.current = Date.now();
           }
           setInkBudget(state.inkBudget as number);
