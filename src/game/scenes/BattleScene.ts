@@ -375,15 +375,20 @@ export class BattleScene extends Phaser.Scene {
     for (const proj of state.projectiles) {
       let display = this.projectileDisplays.get(proj.id);
       if (!display) {
-        // Create main projectile with glow
-        const graphic = this.add.circle(proj.x, proj.y, 8, 0x3498db, 0.9);
+        const ownerPlayer = state.players.get(proj.ownerId);
+        const ownerSummoned = summonedFighters?.get(proj.ownerId);
+        const teamColor = ownerPlayer?.teamColor ?? ownerSummoned?.teamColor ?? "#3498db";
+        const colorInt = Phaser.Display.Color.HexStringToColor(teamColor).color;
+
+        // Create main projectile with owner's team color
+        const graphic = this.add.circle(proj.x, proj.y, 8, colorInt, 0.9);
         graphic.setStrokeStyle(3, 0xffffff, 0.8);
         graphic.setDepth(10);
 
-        // Create trail particles
+        // Create trail particles in owner's team color
         const trail: Phaser.GameObjects.Arc[] = [];
         for (let i = 0; i < 5; i++) {
-          const trailPart = this.add.circle(proj.x, proj.y, 6 - i, 0x3498db, 0.5 - i * 0.08);
+          const trailPart = this.add.circle(proj.x, proj.y, 6 - i, colorInt, 0.5 - i * 0.08);
           trailPart.setDepth(9);
           trail.push(trailPart);
         }
@@ -1113,11 +1118,12 @@ export class BattleScene extends Phaser.Scene {
       },
     });
 
-    // Charge-up effect
+    // Charge-up effect in attacker's team color
     const chargeX = attacker.sprite.x + (attacker.sprite.x < ARENA_WIDTH / 2 ? 30 : -30);
     const chargeY = attacker.sprite.y - 10;
+    const colorInt = Phaser.Display.Color.HexStringToColor(attacker.teamColor).color;
 
-    const charge = this.add.circle(chargeX, chargeY, 8, 0x3498db, 0.6);
+    const charge = this.add.circle(chargeX, chargeY, 8, colorInt, 0.6);
     charge.setStrokeStyle(2, 0xffffff, 0.8);
     charge.setDepth(15);
 
@@ -1130,9 +1136,9 @@ export class BattleScene extends Phaser.Scene {
       onComplete: () => charge.destroy(),
     });
 
-    // Energy ring
-    const ring = this.add.circle(chargeX, chargeY, 15, 0x3498db, 0);
-    ring.setStrokeStyle(3, 0x3498db, 0.7);
+    // Energy ring in attacker's team color
+    const ring = this.add.circle(chargeX, chargeY, 15, colorInt, 0);
+    ring.setStrokeStyle(3, colorInt, 0.7);
     ring.setDepth(15);
     this.tweens.add({
       targets: ring,
