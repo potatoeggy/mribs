@@ -630,17 +630,23 @@ export class BattleSimulation {
     }
     fighter.hp = Math.max(0, fighter.hp - amount);
 
-    // Apply knockback (3x multiplier for more dynamic battles)
-    if (attackerId && amount > 0) {
-      const attacker = this.fighters.get(attackerId);
-      if (attacker) {
-        const dx = fighter.x - attacker.x;
-        const knockbackForce = amount * 15; // 3x multiplier (base was 5, now 15)
-        fighter.vx += Math.sign(dx) * knockbackForce;
-        // Slight upward knock for dramatic effect
-        fighter.vy -= knockbackForce * 0.3;
-        fighter.isOnGround = false;
+    // Apply knockback - ALWAYS apply knockback on ANY damage, increased 5x for dramatic battles
+    if (amount > 0) {
+      let knockbackDirection = 1;
+
+      if (attackerId) {
+        const attacker = this.fighters.get(attackerId);
+        if (attacker) {
+          const dx = fighter.x - attacker.x;
+          knockbackDirection = Math.sign(dx) || 1;
+        }
       }
+
+      const knockbackForce = amount * 25; // 5x multiplier (was 15, now 25)
+      fighter.vx += knockbackDirection * knockbackForce;
+      // Significant upward knock for dramatic effect
+      fighter.vy -= knockbackForce * 0.4;
+      fighter.isOnGround = false;
     }
   }
 

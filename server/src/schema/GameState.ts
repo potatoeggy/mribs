@@ -67,6 +67,6 @@ export class GameStateSchema extends Schema {
   // Room config
   @type("number") inkBudget: number = 5000; // Drawing phase ink budget (not used in new system)
   @type("number") drawingTimeLimit: number = 75;
-  @type("number") battleInkMax: number = 200; // Starting ink for battle (no regen)
+  @type("number") battleInkMax: number = 2000; // Starting ink for battle (no regen) - high for many summons
   @type("number") battleInkRegen: number = 0; // No regeneration in new system
 }

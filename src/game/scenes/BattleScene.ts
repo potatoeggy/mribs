@@ -447,10 +447,18 @@ export class BattleScene extends Phaser.Scene {
 
     // Dramatic defeat sequence
     // 1. Freeze and flash
-    sprite.setTint(0xffffff);
-    this.time.delayedCall(80, () => {
-      sprite.clearTint();
-    });
+    if (sprite instanceof Phaser.GameObjects.Image) {
+      sprite.setTint(0xffffff);
+      this.time.delayedCall(80, () => {
+        sprite.clearTint();
+      });
+    } else if (sprite instanceof Phaser.GameObjects.Rectangle) {
+      const originalColor = sprite.fillColor;
+      sprite.setFillStyle(0xffffff);
+      this.time.delayedCall(80, () => {
+        sprite.setFillStyle(originalColor);
+      });
+    }
 
     // 2. Expand and shake
     this.tweens.add({
@@ -477,12 +485,23 @@ export class BattleScene extends Phaser.Scene {
         // Add trailing afterimages
         for (let i = 0; i < 5; i++) {
           this.time.delayedCall(i * 120, () => {
-            const ghost = this.add.sprite(sprite.x, sprite.y, sprite.texture);
-            ghost.setScale(sprite.scaleX, sprite.scaleY);
-            ghost.setRotation(sprite.rotation);
-            ghost.setAlpha(0.3);
-            ghost.setTint(0xff0000);
-            ghost.setDepth(49);
+            let ghost: Phaser.GameObjects.Sprite | Phaser.GameObjects.Rectangle;
+
+            if (sprite instanceof Phaser.GameObjects.Image) {
+              ghost = this.add.sprite(sprite.x, sprite.y, sprite.texture);
+              ghost.setScale(sprite.scaleX, sprite.scaleY);
+              ghost.setRotation(sprite.rotation);
+              ghost.setAlpha(0.3);
+              ghost.setTint(0xff0000);
+              ghost.setDepth(49);
+            } else {
+              // For Rectangle, create a rectangle ghost
+              ghost = this.add.rectangle(sprite.x, sprite.y, 50, 60, 0xff0000, 0.3);
+              ghost.setScale(sprite.scaleX, sprite.scaleY);
+              ghost.setRotation(sprite.rotation);
+              ghost.setDepth(49);
+            }
+
             this.tweens.add({
               targets: ghost,
               alpha: 0,
@@ -965,15 +984,24 @@ export class BattleScene extends Phaser.Scene {
     const sprite = fighter.sprite;
     const origX = sprite.x;
 
-    // Flash white
-    const originalTint = sprite.tintTopLeft;
-    sprite.setTint(0xffffff);
-    this.time.delayedCall(50, () => {
-      sprite.clearTint();
-      if (originalTint !== 0xffffff) {
-        sprite.setTint(originalTint);
-      }
-    });
+    // Flash white - only for Image sprites that support tinting
+    if (sprite instanceof Phaser.GameObjects.Image) {
+      const originalTint = sprite.tintTopLeft;
+      sprite.setTint(0xffffff);
+      this.time.delayedCall(50, () => {
+        sprite.clearTint();
+        if (originalTint !== 0xffffff) {
+          sprite.setTint(originalTint);
+        }
+      });
+    } else if (sprite instanceof Phaser.GameObjects.Rectangle) {
+      // For Rectangle, briefly change fill color to white
+      const originalColor = sprite.fillColor;
+      sprite.setFillStyle(0xffffff);
+      this.time.delayedCall(50, () => {
+        sprite.setFillStyle(originalColor);
+      });
+    }
 
     // Shake and recoil
     this.tweens.add({

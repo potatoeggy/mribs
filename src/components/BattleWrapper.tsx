@@ -330,11 +330,43 @@ export default function BattleWrapper({
         const currentRoom = roomRef.current;
         if (!currentRoom) return;
 
-        scene.updateState(parseRoomState(currentRoom), summonedFighters);
+        // Create a function to get current summoned fighters from state
+        const getCurrentSummonedFighters = () => {
+          const state = currentRoom.state as Record<string, unknown>;
+          const fighters = new Map<string, {
+            id: string;
+            name: string;
+            x: number;
+            y: number;
+            hp: number;
+            maxHp: number;
+            facingRight: boolean;
+            spriteData: string;
+            teamColor: string;
+          }>();
+
+          (state.summonedFighters as { forEach?: (cb: (f: Record<string, unknown>, id: string) => void) => void })?.forEach?.((f: Record<string, unknown>, id: string) => {
+            fighters.set(id, {
+              id: f.id as string,
+              name: f.name as string,
+              x: f.x as number,
+              y: f.y as number,
+              hp: f.hp as number,
+              maxHp: f.maxHp as number,
+              facingRight: f.facingRight as boolean,
+              spriteData: f.spriteData as string,
+              teamColor: f.teamColor as string,
+            });
+          });
+
+          return fighters;
+        };
+
+        scene.updateState(parseRoomState(currentRoom), getCurrentSummonedFighters());
 
         currentRoom.onStateChange(() => {
           if (!scene) return;
-          scene.updateState(parseRoomState(currentRoom), summonedFighters);
+          scene.updateState(parseRoomState(currentRoom), getCurrentSummonedFighters());
         });
 
         currentRoom.onMessage("battleEvents", (events: Array<Record<string, unknown>>) => {
