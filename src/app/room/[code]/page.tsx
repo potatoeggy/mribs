@@ -109,6 +109,9 @@ export default function GameRoomPage() {
   const [battleCountdown, setBattleCountdown] = useState(0);
   /** Summon ink from BattleWrapper (only changes on summon, not battle sim) */
   const [mySummonInk, setMySummonInk] = useState<number | null>(null);
+  /** Opponent's summon ink (only decreases when they summon, not battle sim) */
+  const [opponentSummonInk, setOpponentSummonInk] = useState<number | null>(null);
+  const opponentInkInitializedRef = useRef(false);
   const RESULT_DELAY_MS = 1700;
   const BATTLE_COUNTDOWN_SEC = 6;
 
@@ -164,7 +167,6 @@ export default function GameRoomPage() {
           setDrawingTimeLimit(state.drawingTimeLimit as number);
 
           const newPlayers = new Map<string, PlayerData>();
-          const newSummonedFighters = new Map<string, SummonedFighterData>();
           (state.players as { forEach: (cb: (p: Record<string, unknown>, id: string) => void) => void }).forEach((p: Record<string, unknown>, id: string) => {
             newPlayers.set(id, {
               id: p.id as string,
@@ -194,7 +196,16 @@ export default function GameRoomPage() {
           });
           setPlayers(newPlayers);
 
-          // Parse summoned fighters
+          // Init opponent summon ink when first entering battle (only decreases when they summon)
+          if (newPhase === "battle" && !opponentInkInitializedRef.current) {
+            const opp = Array.from(newPlayers.values()).find((p) => p.id !== r.sessionId);
+            if (opp) {
+              setOpponentSummonInk(opp.ink);
+              opponentInkInitializedRef.current = true;
+            }
+          }
+
+          const newSummonedFighters = new Map<string, SummonedFighterData>();
           (state.summonedFighters as { forEach: (cb: (f: Record<string, unknown>, id: string) => void) => void })?.forEach((f: Record<string, unknown>, id: string) => {
             newSummonedFighters.set(id, {
               id: f.id as string,
@@ -232,6 +243,14 @@ export default function GameRoomPage() {
         r.onMessage("opponentStrokeClear", () => {
           if (!mounted) return;
           setOpponentStrokes([]);
+        });
+
+        r.onMessage("fighterSummoned", (data: { ownerId?: string; inkCost?: number }) => {
+          if (!mounted) return;
+          const inkCost = data.inkCost;
+          if (data.ownerId && data.ownerId !== r.sessionId && typeof inkCost === "number") {
+            setOpponentSummonInk((prev) => (prev != null ? Math.max(0, prev - inkCost) : prev));
+          }
         });
 
         r.onError((code, message) => {
@@ -274,6 +293,8 @@ export default function GameRoomPage() {
   useEffect(() => {
     if (phase !== "battle" && phase !== "result") {
       setMySummonInk(null);
+      setOpponentSummonInk(null);
+      opponentInkInitializedRef.current = false;
     }
   }, [phase]);
 
@@ -698,7 +719,7 @@ export default function GameRoomPage() {
               />
               <span className="text-2xl font-bold text-gray-400 mt-2">VS</span>
               <InkBar
-                ink={opponentPlayer?.ink || 0}
+                ink={opponentSummonInk ?? opponentPlayer?.ink ?? 0}
                 maxInk={opponentPlayer?.maxInk || 6000}
                 name={opponentPlayer?.fighterName || "Opponent"}
                 side="right"

@@ -660,9 +660,9 @@ export default function BattleWrapper({
 
           {/* History sidebar */}
           {summonHistory.length > 0 && (
-            <div className="w-40 p-3 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg">
+            <div className="w-44 p-3 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg shrink-0">
               <h4 className="font-hand text-sm font-bold text-gray-800 mb-2">History</h4>
-              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto overflow-x-visible">
                 {summonHistory.map((summon, index) => {
                   const canAfford = myInk >= summon.inkCost;
                   return (
@@ -670,14 +670,16 @@ export default function BattleWrapper({
                       key={index}
                       onClick={() => handleRespawnFromHistory(index)}
                       disabled={!canAfford}
-                      className="p-2 bg-purple-100 hover:bg-purple-200 disabled:bg-gray-200 disabled:cursor-not-allowed border-2 border-purple-400 disabled:border-gray-300 rounded-lg transition-colors"
+                      className="p-2 bg-purple-100 hover:bg-purple-200 disabled:bg-gray-200 disabled:cursor-not-allowed border-2 border-purple-400 disabled:border-gray-300 rounded-lg transition-colors text-left min-w-0"
                       title={`${summon.config.name} - ${summon.inkCost.toFixed(0)} ink`}
                     >
-                      <img
-                        src={summon.spriteData}
-                        alt={summon.config.name}
-                        className="w-full h-auto"
-                      />
+                      <div className="w-full aspect-[2/1] flex items-center justify-center bg-gray-100/50 rounded overflow-hidden mb-1">
+                        <img
+                          src={summon.spriteData}
+                          alt={summon.config.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
                       <p className="font-hand text-xs text-center mt-1 truncate">
                         {summon.config.name}
                       </p>

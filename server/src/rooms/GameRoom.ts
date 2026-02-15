@@ -322,10 +322,11 @@ export class GameRoom extends Room<GameStateSchema> {
     summonedFighter.teamColor = player.teamColor;
     this.state.summonedFighters.set(fighterId, summonedFighter);
 
-    // Broadcast the summon event
+    // Broadcast the summon event (inkCost so clients can update opponent ink bar)
     this.broadcast("fighterSummoned", {
       fighterId,
       ownerId: client.sessionId,
+      inkCost,
       config: data.config,
       spriteData: data.spriteData,
       x: startX,

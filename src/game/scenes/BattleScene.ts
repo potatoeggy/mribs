@@ -417,6 +417,17 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  /** Set sprite display size preserving aspect ratio, fitting within maxSize. */
+  private setSpriteDisplaySizePreserveAspect(sprite: Phaser.GameObjects.Image, maxSize: number): void {
+    const frame = sprite.frame;
+    const w = frame?.width ?? 1;
+    const h = frame?.height ?? 1;
+    const scale = Math.min(maxSize / w, maxSize / h, 1);
+    const dw = Math.round(w * scale);
+    const dh = Math.round(h * scale);
+    sprite.setDisplaySize(dw, dh);
+  }
+
   loadFighterSprite(playerId: string, spriteDataUrl: string): void {
     const textureKey = `fighter_${playerId}`;
 
@@ -437,7 +448,7 @@ export class BattleScene extends Phaser.Scene {
         if (fighter) {
           const oldSprite = fighter.sprite;
           const newSprite = this.add.image(oldSprite.x, oldSprite.y, textureKey);
-          newSprite.setDisplaySize(60, 60);
+          this.setSpriteDisplaySizePreserveAspect(newSprite, 80);
           newSprite.setDepth(3);
           oldSprite.destroy();
           fighter.sprite = newSprite;
@@ -684,7 +695,7 @@ export class BattleScene extends Phaser.Scene {
         let ghost: Phaser.GameObjects.GameObject & { setDepth: (d: number) => void };
         if (sprite instanceof Phaser.GameObjects.Image) {
           const img = this.add.image(trailX, trailY, sprite.texture.key);
-          img.setDisplaySize(60, 60);
+          img.setDisplaySize(sprite.displayWidth, sprite.displayHeight);
           img.setAlpha(0.35);
           img.setFlipX(sprite.flipX);
           ghost = img;
@@ -734,7 +745,7 @@ export class BattleScene extends Phaser.Scene {
     const spawnFallingDrawing = (textureKey: string) => {
       if (!this.textures.exists(textureKey)) return;
       const drawSprite = this.add.image(spawnX, spawnY, textureKey);
-      drawSprite.setDisplaySize(88, 88);
+      this.setSpriteDisplaySizePreserveAspect(drawSprite, 120);
       drawSprite.setDepth(18);
 
       this.physics.add.existing(drawSprite, false);
