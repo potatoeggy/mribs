@@ -459,40 +459,6 @@ export default function BattleWrapper({
         );
 
         currentRoom.onMessage(
-          "gestureAttackVisual",
-          (data: Record<string, unknown>) => {
-            if (!scene) return;
-            const { players } = parseRoomState(currentRoom);
-            const getName = (id: string) =>
-              players.get(id)?.fighterName || "Fighter";
-
-            if (onCommentaryRef.current) {
-              const attacker = getName(data.playerId as string);
-              const target = getName(data.targetId as string);
-              const action = (data.action as string) || "attack";
-              maybeCommentary(
-                {
-                  eventType: "attack",
-                  attackerName: attacker,
-                  targetName: target,
-                  action,
-                },
-                pick(COMMENTARY_LINES.attack)(attacker, target, action),
-              );
-            }
-
-            scene.playGestureAttackVisual({
-              playerId: data.playerId as string,
-              targetId: data.targetId as string,
-              gesture: data.gesture as string,
-              action: data.action as string,
-              power: data.power as number,
-              drawingData: data.drawingData as string | undefined,
-            });
-          },
-        );
-
-        currentRoom.onMessage(
           "fighterSummoned",
           (data: Record<string, unknown>) => {
             if (!scene) return;
