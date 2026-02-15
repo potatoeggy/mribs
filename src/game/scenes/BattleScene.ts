@@ -73,8 +73,8 @@ export class BattleScene extends Phaser.Scene {
     // by uncommenting the load.audio lines in preload and using this.sound.add()
   }
 
-  private playSound(key: string, volume: number = 0.3): void {
-    // Play a short beep sound using Web Audio API
+  playSound(key: string, volume: number = 0.4): void {
+    // Play procedural sound effects using Web Audio API
     if (!this.sys.game?.sound?.context) return;
 
     const context = this.sys.game.sound.context as AudioContext;
@@ -84,35 +84,80 @@ export class BattleScene extends Phaser.Scene {
     oscillator.connect(gainNode);
     gainNode.connect(context.destination);
 
-    // Different sounds for different actions
+    // Enhanced sound variety for different actions
     switch (key) {
       case "melee":
-        oscillator.frequency.value = 200;
-        gainNode.gain.setValueAtTime(volume, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.1);
+        // Punchy melee hit - swoosh + impact
+        oscillator.type = "sawtooth";
+        oscillator.frequency.setValueAtTime(400, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(150, context.currentTime + 0.08);
+        gainNode.gain.setValueAtTime(volume * 0.8, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.12);
         oscillator.start(context.currentTime);
-        oscillator.stop(context.currentTime + 0.1);
+        oscillator.stop(context.currentTime + 0.12);
         break;
+
       case "projectile":
-        oscillator.frequency.value = 400;
+        // Whoosh sound for projectile launch
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(600, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(300, context.currentTime + 0.15);
         gainNode.gain.setValueAtTime(volume * 0.5, context.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.15);
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.15);
         break;
+
       case "damage":
-        oscillator.frequency.value = 150;
-        gainNode.gain.setValueAtTime(volume * 0.7, context.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.08);
+        // Impact sound - lower thud
+        oscillator.type = "triangle";
+        oscillator.frequency.value = 180;
+        gainNode.gain.setValueAtTime(volume, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.1);
         oscillator.start(context.currentTime);
-        oscillator.stop(context.currentTime + 0.08);
+        oscillator.stop(context.currentTime + 0.1);
         break;
+
+      case "death":
+        // Dramatic death sound - descending tone
+        oscillator.type = "square";
+        oscillator.frequency.setValueAtTime(400, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(50, context.currentTime + 0.5);
+        gainNode.gain.setValueAtTime(volume * 0.6, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.5);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.5);
+        break;
+
       case "summon":
-        oscillator.frequency.value = 600;
+        // Magical sparkle sound
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(800, context.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(1200, context.currentTime + 0.3);
         gainNode.gain.setValueAtTime(volume * 0.4, context.currentTime);
         gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.3);
         oscillator.start(context.currentTime);
         oscillator.stop(context.currentTime + 0.3);
+        break;
+
+      case "shield":
+        // Shield activate - bright ping
+        oscillator.type = "sine";
+        oscillator.frequency.value = 800;
+        gainNode.gain.setValueAtTime(volume * 0.5, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.2);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.2);
+        break;
+
+      case "hit":
+        // Sharp hit sound
+        oscillator.type = "square";
+        oscillator.frequency.value = 250;
+        gainNode.gain.setValueAtTime(volume * 0.7, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.08);
+        oscillator.start(context.currentTime);
+        oscillator.stop(context.currentTime + 0.08);
         break;
     }
   }

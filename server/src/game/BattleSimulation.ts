@@ -63,6 +63,8 @@ interface FighterState {
   idleTargetX?: number; // Target position for idle wandering
   jumpCooldown: number; // Time until can jump again (dodge)
   isDead: boolean; // Track if death event already sent
+  comboCounter: number; // Track combo hits for varied attacks
+  chargeTimer: number; // Track charge time for power attacks
 }
 
 export interface BattleEvent {
@@ -133,6 +135,8 @@ export class BattleSimulation {
       idleTargetX: undefined,
       jumpCooldown: 0,
       isDead: false,
+      comboCounter: 0,
+      chargeTimer: 0,
     });
   }
 
@@ -486,11 +490,20 @@ export class BattleSimulation {
               if (canAttack) {
                 fighter.ink -= inkCost;
                 ability.cooldownRemaining = ability.cooldownMax;
-                fighter.autoAttackCooldown = 0.3; // Small delay between autoattacks
 
-                // Execute attack
+                // Increment combo counter for attack variety
+                fighter.comboCounter = (fighter.comboCounter + 1) % 5;
+
+                // Varied cooldown based on attack type
+                const isComboAttack = fighter.comboCounter === 3; // Every 4th attack
+                const isChargedAttack = fighter.comboCounter === 4; // Every 5th attack
+
+                fighter.autoAttackCooldown = isComboAttack ? 0.1 : (isChargedAttack ? 0.6 : 0.3);
+
+                // Execute attack with variety
                 if (ability.type === "melee") {
-                  const damage = (ability.params.damage as number) || 15;
+                  const baseDamage = (ability.params.damage as number) || 15;
+                  const damage = isChargedAttack ? baseDamage * 1.5 : baseDamage;
                   this.applyDamage(opponent, damage, fighter.id);
                   this.events.push({
                     type: "meleeHit",
@@ -502,22 +515,32 @@ export class BattleSimulation {
                   const baseSpeed = (ability.params.speed as number) || 5;
                   const projSpeed = baseSpeed * 100;
                   const isHoming = (ability.params.homing as boolean) || false;
-                  const vx = (dx / dist) * projSpeed;
-                  const vy = (dy / dist) * projSpeed;
+                  const baseDamage = (ability.params.damage as number) || 10;
 
-                  this.projectiles.push({
-                    id: `proj_${this.nextProjectileId++}`,
-                    ownerId: fighter.id,
-                    x: fighter.x + (fighter.facingRight ? 30 : -30),
-                    y: fighter.y - 10,
-                    vx,
-                    vy,
-                    damage: (ability.params.damage as number) || 10,
-                    active: true,
-                    age: 0,
-                    homing: isHoming,
-                    speed: baseSpeed,
-                  });
+                  // Double shot for combo attacks
+                  const shotCount = isComboAttack ? 2 : 1;
+                  const damagePerShot = isChargedAttack ? baseDamage * 1.3 : baseDamage;
+
+                  for (let i = 0; i < shotCount; i++) {
+                    const angleOffset = shotCount > 1 ? (i === 0 ? -0.2 : 0.2) : 0;
+                    const angle = Math.atan2(dy, dx) + angleOffset;
+                    const vx = Math.cos(angle) * projSpeed;
+                    const vy = Math.sin(angle) * projSpeed;
+
+                    this.projectiles.push({
+                      id: `proj_${this.nextProjectileId++}`,
+                      ownerId: fighter.id,
+                      x: fighter.x + (fighter.facingRight ? 30 : -30),
+                      y: fighter.y - 10 + (i * 5),
+                      vx,
+                      vy,
+                      damage: damagePerShot,
+                      active: true,
+                      age: 0,
+                      homing: isHoming,
+                      speed: baseSpeed,
+                    });
+                  }
 
                   this.events.push({
                     type: "projectileSpawn",

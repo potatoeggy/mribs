@@ -141,6 +141,12 @@ export default function BattleWrapper({
   const [isSummoning, setIsSummoning] = useState(false);
   const [myInk, setMyInk] = useState(0);
   const [myTeamColor, setMyTeamColor] = useState("#1a1a1a");
+  const [summonHistory, setSummonHistory] = useState<Array<{
+    imageData: string;
+    inkCost: number;
+    config: any;
+    spriteData: string;
+  }>>([]);
 
   const maybeCommentary = useCallback(async (context: {
     eventType: "attack" | "damage" | "death";
@@ -259,8 +265,11 @@ export default function BattleWrapper({
 
       const { config } = await response.json();
 
-      // Extract sprite from the drawing
-      const spriteData = extractSprite(imageData, config.spriteBounds);
+      // Extract sprite from the drawing (async now)
+      const spriteData = await extractSprite(imageData, config.spriteBounds);
+
+      // Add to history
+      setSummonHistory(prev => [...prev, { imageData, inkCost: inkSpent, config, spriteData }]);
 
       // Send to server with ink cost
       room.send("summonFighter", { config, spriteData, inkCost: inkSpent });
@@ -272,35 +281,58 @@ export default function BattleWrapper({
     }
   }, [room]);
 
-  const extractSprite = (imageData: string, bounds: { x: number; y: number; width: number; height: number }): string => {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return imageData;
+  const handleRespawnFromHistory = useCallback((index: number) => {
+    const summon = summonHistory[index];
+    if (!summon || myInk < summon.inkCost) return;
 
-    const img = new Image();
-    img.src = imageData;
+    // Send directly to server
+    room.send("summonFighter", {
+      config: summon.config,
+      spriteData: summon.spriteData,
+      inkCost: summon.inkCost
+    });
+  }, [room, summonHistory, myInk]);
 
-    // Wait for image to load synchronously (for demo purposes)
-    // In production, you'd want to handle this async
-    canvas.width = bounds.width;
-    canvas.height = bounds.height;
+  const extractSprite = async (imageData: string, bounds: { x: number; y: number; width: number; height: number }): Promise<string> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(imageData);
+        return;
+      }
 
-    try {
-      ctx.drawImage(
-        img,
-        bounds.x,
-        bounds.y,
-        bounds.width,
-        bounds.height,
-        0,
-        0,
-        bounds.width,
-        bounds.height
-      );
-      return canvas.toDataURL("image/png");
-    } catch {
-      return imageData;
-    }
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = bounds.width;
+        canvas.height = bounds.height;
+
+        try {
+          ctx.drawImage(
+            img,
+            bounds.x,
+            bounds.y,
+            bounds.width,
+            bounds.height,
+            0,
+            0,
+            bounds.width,
+            bounds.height
+          );
+          resolve(canvas.toDataURL("image/png"));
+        } catch (error) {
+          console.error("Failed to extract sprite:", error);
+          resolve(imageData);
+        }
+      };
+
+      img.onerror = () => {
+        console.error("Failed to load image for sprite extraction");
+        resolve(imageData);
+      };
+
+      img.src = imageData;
+    });
   };
 
   useEffect(() => {
@@ -383,6 +415,9 @@ export default function BattleWrapper({
                 scene.playAutoMeleeEffect(attackerId, targetId);
               }
 
+              // Play hit sound
+              scene.playSound("hit");
+
               const targetPlayer = players.get(targetId);
               if (targetPlayer) {
                 scene.showDamageNumber(
@@ -423,10 +458,12 @@ export default function BattleWrapper({
               const attackerId = event.playerId as string;
               if (attackerId) {
                 scene.playAutoProjectileEffect(attackerId);
+                scene.playSound("projectile");
               }
             }
             if (event.type === "death") {
               scene.showDeathAnimation(event.playerId as string);
+              scene.playSound("death");
               if (onCommentaryRef.current) {
                 const name = getName(event.playerId as string);
                 maybeCommentary(
@@ -566,29 +603,65 @@ export default function BattleWrapper({
 
       {/* Inline summon UI - always visible during battle */}
       {battleReady && (
-        <div className="w-full max-w-[800px] p-4 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-hand text-lg font-bold text-gray-800">Quick Summon</h3>
-            <span className="font-hand text-sm text-gray-600">
-              {myInk.toFixed(0)} ink available
-            </span>
+        <div className="w-full max-w-[800px] flex gap-3">
+          {/* Main summon area */}
+          <div className="flex-1 p-4 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-hand text-lg font-bold text-gray-800">Quick Summon</h3>
+              <span className="font-hand text-sm text-gray-600">
+                {myInk.toFixed(0)} ink available
+              </span>
+            </div>
+            {isSummoning && (
+              <div className="mb-4 p-3 bg-purple-100 border-2 border-purple-400 rounded-lg">
+                <p className="text-purple-700 font-hand font-bold animate-pulse">
+                  AI analyzing your summon... ✨
+                </p>
+              </div>
+            )}
+            <SummonDrawingModal
+              isOpen={true}
+              onClose={() => {}}
+              onSubmit={handleSummonSubmit}
+              inkCost={SUMMON_INK_COST}
+              currentInk={myInk}
+              inline={true}
+              teamColor={myTeamColor}
+            />
           </div>
-          {isSummoning && (
-            <div className="mb-4 p-3 bg-purple-100 border-2 border-purple-400 rounded-lg">
-              <p className="text-purple-700 font-hand font-bold animate-pulse">
-                AI analyzing your summon... ✨
-              </p>
+
+          {/* History sidebar */}
+          {summonHistory.length > 0 && (
+            <div className="w-40 p-3 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg">
+              <h4 className="font-hand text-sm font-bold text-gray-800 mb-2">History</h4>
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+                {summonHistory.map((summon, index) => {
+                  const canAfford = myInk >= summon.inkCost;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleRespawnFromHistory(index)}
+                      disabled={!canAfford}
+                      className="p-2 bg-purple-100 hover:bg-purple-200 disabled:bg-gray-200 disabled:cursor-not-allowed border-2 border-purple-400 disabled:border-gray-300 rounded-lg transition-colors"
+                      title={`${summon.config.name} - ${summon.inkCost.toFixed(0)} ink`}
+                    >
+                      <img
+                        src={summon.spriteData}
+                        alt={summon.config.name}
+                        className="w-full h-auto"
+                      />
+                      <p className="font-hand text-xs text-center mt-1 truncate">
+                        {summon.config.name}
+                      </p>
+                      <p className="font-hand text-xs text-center text-gray-600">
+                        {summon.inkCost.toFixed(0)} ink
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
-          <SummonDrawingModal
-            isOpen={true}
-            onClose={() => {}}
-            onSubmit={handleSummonSubmit}
-            inkCost={SUMMON_INK_COST}
-            currentInk={myInk}
-            inline={true}
-            teamColor={myTeamColor}
-          />
         </div>
       )}
     </div>

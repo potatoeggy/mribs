@@ -682,7 +682,7 @@ export default function GameRoomPage() {
               <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
               <InkBar
                 ink={myPlayer?.ink || 0}
-                maxInk={myPlayer?.maxInk || 2000}
+                maxInk={myPlayer?.maxInk || 8000}
                 name={myPlayer?.fighterName || "You"}
                 side="left"
                 color={myPlayer?.teamColor || "#ef4444"}
@@ -690,7 +690,7 @@ export default function GameRoomPage() {
               <span className="text-2xl font-bold text-gray-400 mt-2">VS</span>
               <InkBar
                 ink={opponentPlayer?.ink || 0}
-                maxInk={opponentPlayer?.maxInk || 2000}
+                maxInk={opponentPlayer?.maxInk || 8000}
                 name={opponentPlayer?.fighterName || "Opponent"}
                 side="right"
                 color={opponentPlayer?.teamColor || "#3b82f6"}

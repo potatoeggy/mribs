@@ -28,6 +28,35 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
 
     const isReadyRef = useRef(false);
     const pendingLineRef = useRef<string | null>(null);
+    const isSpeakingRef = useRef(false);
+    const queueRef = useRef<string[]>([]);
+
+    const processQueue = useCallback(() => {
+      const session = sessionRef.current;
+      if (!session || !isReadyRef.current || isSpeakingRef.current) return;
+
+      const next = queueRef.current.shift();
+      if (!next) return;
+
+      isSpeakingRef.current = true;
+      try {
+        session.message(next);
+        // Estimate speech duration: ~150 words per minute, ~5 chars per word
+        const words = next.length / 5;
+        const durationMs = (words / 150) * 60 * 1000;
+        // Add extra buffer time
+        const totalDuration = Math.max(2000, durationMs + 500);
+
+        setTimeout(() => {
+          isSpeakingRef.current = false;
+          processQueue();
+        }, totalDuration);
+      } catch (err) {
+        console.warn("Commentator speak error:", err);
+        isSpeakingRef.current = false;
+        processQueue();
+      }
+    }, []);
 
     const doSpeak = useCallback((text: string) => {
       const session = sessionRef.current;
@@ -36,12 +65,10 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
         return;
       }
       pendingLineRef.current = null;
-      try {
-        session.message(text);
-      } catch (err) {
-        console.warn("Commentator speak error:", err);
-      }
-    }, []);
+      // Add to queue instead of speaking immediately
+      queueRef.current.push(text);
+      processQueue();
+    }, [processQueue]);
 
     const speak = useCallback((text: string) => {
       doSpeak(text);
