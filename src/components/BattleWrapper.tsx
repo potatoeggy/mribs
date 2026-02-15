@@ -315,6 +315,7 @@ export default function BattleWrapper({
   useEffect(() => {
     let game: import("phaser").Game | null = null;
     let scene: InstanceType<typeof import("@/game/scenes/BattleScene").BattleScene> | null = null;
+    let unsubStateChange: (() => void) | null = null;
 
     const initPhaser = async () => {
       if (!containerRef.current) return;
@@ -373,10 +374,12 @@ export default function BattleWrapper({
 
         scene.updateState(parseRoomState(currentRoom), getCurrentSummonedFighters());
 
-        currentRoom.onStateChange(() => {
+        const onSceneStateChange = () => {
           if (!scene) return;
           scene.updateState(parseRoomState(currentRoom), getCurrentSummonedFighters());
-        });
+        };
+        currentRoom.onStateChange(onSceneStateChange);
+        unsubStateChange = () => currentRoom.onStateChange.remove(onSceneStateChange);
 
         currentRoom.onMessage("battleEvents", (events: Array<Record<string, unknown>>) => {
           if (!scene) return;
@@ -505,6 +508,7 @@ export default function BattleWrapper({
 
     return () => {
       scene = null;
+      unsubStateChange?.();
       if (game) {
         game.destroy(true);
         gameRef.current = null;
@@ -558,7 +562,7 @@ export default function BattleWrapper({
     room.onStateChange(updatePlayerData);
 
     return () => {
-      room.onStateChange.clear();
+      room.onStateChange.remove(updatePlayerData);
     };
   }, [room, mySessionId]);
 

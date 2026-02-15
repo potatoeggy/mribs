@@ -41,6 +41,7 @@ interface AbilityState {
 
 interface FighterState {
   id: string;
+  ownerId: string;
   x: number;
   y: number;
   vx: number;
@@ -90,6 +91,7 @@ export class BattleSimulation {
 
   addFighter(
     id: string,
+    ownerId: string,
     startX: number,
     facingRight: boolean,
     config: {
@@ -113,6 +115,7 @@ export class BattleSimulation {
 
     this.fighters.set(id, {
       id,
+      ownerId,
       x: startX,
       y: GROUND_Y,
       vx: 0,
@@ -404,7 +407,9 @@ export class BattleSimulation {
       // Dodging logic: Check for incoming projectiles and jump to dodge
       if (battleReady && fighter.isOnGround && fighter.jumpCooldown <= 0) {
         for (const proj of this.projectiles) {
-          if (proj.ownerId === fighter.id || !proj.active) continue;
+          if (!proj.active) continue;
+          const projTeam = this.getTeamId(proj.ownerId);
+          if (projTeam === fighter.ownerId) continue;
 
           const dx = proj.x - fighter.x;
           const dy = proj.y - fighter.y;
@@ -562,7 +567,6 @@ export class BattleSimulation {
 
       // Homing projectile logic
       if (proj.homing) {
-        // Find target (opponent of projectile owner)
         const target = this.getOpponent(proj.ownerId);
         if (target && target.hp > 0) {
           const dx = target.x - proj.x;
@@ -596,9 +600,10 @@ export class BattleSimulation {
         continue;
       }
 
-      // Check collision with fighters
+      // Check collision with fighters (skip same-team fighters)
+      const projTeam = this.getTeamId(proj.ownerId);
       for (const [, fighter] of this.fighters) {
-        if (fighter.id === proj.ownerId) continue; // Don't hit owner
+        if (fighter.ownerId === projTeam) continue;
         if (fighter.hp <= 0) continue;
 
         const dx = proj.x - fighter.x;
@@ -673,26 +678,33 @@ export class BattleSimulation {
     }
   }
 
+  private getTeamId(fighterId: string): string | undefined {
+    return this.fighters.get(fighterId)?.ownerId;
+  }
+
   /**
-   * Get the opponent of a given player (first alive opponent).
+   * Get the nearest alive enemy of a given fighter (different team).
    */
   private getOpponent(playerId: string): FighterState | undefined {
-    for (const [id, fighter] of this.fighters) {
-      if (id !== playerId && !fighter.isDead && fighter.hp > 0) return fighter;
+    const teamId = this.getTeamId(playerId);
+    for (const [, fighter] of this.fighters) {
+      if (fighter.ownerId !== teamId && !fighter.isDead && fighter.hp > 0) return fighter;
     }
     return undefined;
   }
 
   /**
-   * Check if the battle is over (someone died).
+   * Check if the battle is over. A team wins when only their fighters remain alive.
    */
   getWinnerId(): string | null {
-    const alive: string[] = [];
-    for (const [id, fighter] of this.fighters) {
-      if (fighter.hp > 0 && !fighter.isDead) alive.push(id);
+    const aliveTeams = new Set<string>();
+    for (const [, fighter] of this.fighters) {
+      if (fighter.hp > 0 && !fighter.isDead) {
+        aliveTeams.add(fighter.ownerId);
+      }
     }
-    if (alive.length === 1) return alive[0];
-    if (alive.length === 0) return "draw";
+    if (aliveTeams.size === 1) return [...aliveTeams][0];
+    if (aliveTeams.size === 0) return "draw";
     return null;
   }
 }

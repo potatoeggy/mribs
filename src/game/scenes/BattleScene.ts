@@ -75,9 +75,10 @@ export class BattleScene extends Phaser.Scene {
 
   playSound(key: string, volume: number = 0.4): void {
     // Play procedural sound effects using Web Audio API
-    if (!this.sys.game?.sound?.context) return;
+    const soundManager = this.sys.game?.sound;
+    if (!soundManager || !("context" in soundManager)) return;
 
-    const context = this.sys.game.sound.context as AudioContext;
+    const context = (soundManager as { context: AudioContext }).context;
     const oscillator = context.createOscillator();
     const gainNode = context.createGain();
 
@@ -314,8 +315,8 @@ export class BattleScene extends Phaser.Scene {
 
       if (data.isShielding) {
         if (!fighter.shieldGraphic) {
-          fighter.shieldGraphic = this.add.circle(data.x, data.y, 40, 0x3498db, 0.25);
-          fighter.shieldGraphic.setStrokeStyle(2, 0x3498db, 0.6);
+          fighter.shieldGraphic = this.add.circle(data.x, data.y, 40, teamColorInt, 0.25);
+          fighter.shieldGraphic.setStrokeStyle(2, teamColorInt, 0.6);
           fighter.shieldGraphic.setDepth(5);
         }
         fighter.shieldGraphic.setVisible(true);
@@ -375,17 +376,15 @@ export class BattleScene extends Phaser.Scene {
     for (const proj of state.projectiles) {
       let display = this.projectileDisplays.get(proj.id);
       if (!display) {
-        const ownerPlayer = state.players.get(proj.ownerId);
-        const ownerSummoned = summonedFighters?.get(proj.ownerId);
-        const teamColor = ownerPlayer?.teamColor ?? ownerSummoned?.teamColor ?? "#3498db";
-        const colorInt = Phaser.Display.Color.HexStringToColor(teamColor).color;
+        const owner = this.fighters.get(proj.ownerId);
+        const colorInt = owner
+          ? Phaser.Display.Color.HexStringToColor(owner.teamColor).color
+          : 0x3498db;
 
-        // Create main projectile with owner's team color
         const graphic = this.add.circle(proj.x, proj.y, 8, colorInt, 0.9);
         graphic.setStrokeStyle(3, 0xffffff, 0.8);
         graphic.setDepth(10);
 
-        // Create trail particles in owner's team color
         const trail: Phaser.GameObjects.Arc[] = [];
         for (let i = 0; i < 5; i++) {
           const trailPart = this.add.circle(proj.x, proj.y, 6 - i, colorInt, 0.5 - i * 0.08);
@@ -1121,9 +1120,9 @@ export class BattleScene extends Phaser.Scene {
     // Charge-up effect in attacker's team color
     const chargeX = attacker.sprite.x + (attacker.sprite.x < ARENA_WIDTH / 2 ? 30 : -30);
     const chargeY = attacker.sprite.y - 10;
-    const colorInt = Phaser.Display.Color.HexStringToColor(attacker.teamColor).color;
+    const teamColorInt = Phaser.Display.Color.HexStringToColor(attacker.teamColor).color;
 
-    const charge = this.add.circle(chargeX, chargeY, 8, colorInt, 0.6);
+    const charge = this.add.circle(chargeX, chargeY, 8, teamColorInt, 0.6);
     charge.setStrokeStyle(2, 0xffffff, 0.8);
     charge.setDepth(15);
 
@@ -1136,9 +1135,9 @@ export class BattleScene extends Phaser.Scene {
       onComplete: () => charge.destroy(),
     });
 
-    // Energy ring in attacker's team color
-    const ring = this.add.circle(chargeX, chargeY, 15, colorInt, 0);
-    ring.setStrokeStyle(3, colorInt, 0.7);
+    // Energy ring
+    const ring = this.add.circle(chargeX, chargeY, 15, teamColorInt, 0);
+    ring.setStrokeStyle(3, teamColorInt, 0.7);
     ring.setDepth(15);
     this.tweens.add({
       targets: ring,
