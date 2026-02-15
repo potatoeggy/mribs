@@ -51,6 +51,8 @@ export class GameRoom extends Room<GameStateSchema> {
   private playerGestureMoves: Map<string, GestureMove[]> = new Map();
   private gestureCooldowns: Map<string, number> = new Map(); // "sessionId" -> time until ready (global cooldown)
   private readonly GESTURE_COOLDOWN_SEC = 2;
+  /** Summon ink per player - only decreases on summon, not from battle sim (moves/abilities) */
+  private summonInk: Map<string, number> = new Map();
 
   maxClients = 2;
 
@@ -272,19 +274,14 @@ export class GameRoom extends Room<GameStateSchema> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    // Check ink cost for summoning (dynamic based on drawing)
     const inkCost = data.inkCost || 50;
-    if (player.ink < inkCost) {
+    const currentSummonInk = this.summonInk.get(client.sessionId) ?? 0;
+    if (currentSummonInk < inkCost) {
       client.send("summonFailed", { reason: "Not enough ink" });
       return;
     }
 
-    // Deduct ink from both schema and simulation
-    player.ink -= inkCost;
-    const fighter = this.battleSim.fighters.get(client.sessionId);
-    if (fighter) {
-      fighter.ink -= inkCost;
-    }
+    this.summonInk.set(client.sessionId, currentSummonInk - inkCost);
 
     // Generate unique fighter ID
     const fighterId = `${client.sessionId}_summon_${Date.now()}`;
@@ -438,6 +435,7 @@ export class GameRoom extends Room<GameStateSchema> {
       player.facingRight = facingRight;
       player.ink = this.state.battleInkMax;
       player.maxInk = this.state.battleInkMax;
+      this.summonInk.set(sessionId, this.state.battleInkMax);
 
       playerIndex++;
     });
@@ -499,6 +497,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.playerDrawings.clear();
     this.playerGestureMoves.clear();
     this.gestureCooldowns.clear();
+    this.summonInk.clear();
 
     this.state.phase = "lobby";
     this.state.timer = 0;

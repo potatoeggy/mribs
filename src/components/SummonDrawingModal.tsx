@@ -6,7 +6,7 @@ import { Stroke, totalInkUsed } from "@/lib/ink";
 interface SummonDrawingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (imageData: string, inkSpent: number) => void;
+  onSubmit: (imageData: string, inkSpent: number) => void | Promise<void>;
   inkCost: number;
   currentInk: number;
   inline?: boolean;
@@ -25,6 +25,7 @@ export default function SummonDrawingModal({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
 
@@ -85,7 +86,7 @@ export default function SummonDrawingModal({
   };
 
   const startDrawing = (e: React.PointerEvent) => {
-    if (inkRemaining <= 0) return;
+    if (inkRemaining <= 0 || isSubmitting) return;
     e.preventDefault();
     const point = getCanvasPoint(e);
     const newStroke: Stroke = {
@@ -135,15 +136,18 @@ export default function SummonDrawingModal({
     setHasDrawn(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || !hasDrawn || !canAfford) return;
+    if (!canvas || !hasDrawn || !canAfford || isSubmitting) return;
 
-    const imageData = canvas.toDataURL("image/png");
-    onSubmit(imageData, inkUsed);
-
-    // Clear canvas after submission
-    handleClear();
+    setIsSubmitting(true);
+    try {
+      const imageData = canvas.toDataURL("image/png");
+      await onSubmit(imageData, inkUsed);
+      handleClear();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen && !inline) return null;
@@ -197,7 +201,7 @@ export default function SummonDrawingModal({
         ref={canvasRef}
         width={600}
         height={300}
-        className="w-full border-4 border-gray-800 rounded-lg cursor-crosshair touch-none mb-4"
+        className={`w-full border-4 border-gray-800 rounded-lg touch-none mb-4 ${isSubmitting ? "cursor-wait pointer-events-none opacity-90" : "cursor-crosshair"}`}
         onPointerDown={startDrawing}
         onPointerMove={draw}
         onPointerUp={stopDrawing}
@@ -208,13 +212,14 @@ export default function SummonDrawingModal({
       <div className="flex gap-3">
         <button
           onClick={handleClear}
-          className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-hand font-bold text-base rounded-lg transition-colors border-2 border-gray-800"
+          disabled={isSubmitting}
+          className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-800 font-hand font-bold text-base rounded-lg transition-colors border-2 border-gray-800"
         >
           Clear
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!hasDrawn || !canAfford || inkUsed < 20}
+          disabled={!hasDrawn || !canAfford || inkUsed < 20 || isSubmitting}
           className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-hand font-bold text-base rounded-lg transition-colors border-2 border-gray-800 disabled:border-gray-400"
         >
           {!canAfford ? "Not Enough Ink" : inkUsed < 20 ? "Draw More" : `Summon! (${inkUsed.toFixed(0)} ink) ✨`}
