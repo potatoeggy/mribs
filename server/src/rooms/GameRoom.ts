@@ -297,7 +297,7 @@ export class GameRoom extends Room<GameStateSchema> {
     // Add fighter to battle simulation
     // Summoned fighters get ink proportional to their creation cost
     const summonedInk = Math.floor(inkCost * 0.5); // 50% of creation ink
-    this.battleSim.addFighter(fighterId, startX, facingRight, {
+    this.battleSim.addFighter(fighterId, client.sessionId, startX, facingRight, {
       maxHp: data.config.health.maxHp,
       movementSpeed: data.config.movement.speed,
       abilities: data.config.abilities.map((a) => ({
@@ -420,7 +420,7 @@ export class GameRoom extends Room<GameStateSchema> {
       const startX = playerIndex === 0 ? 150 : ARENA_WIDTH - 150;
       const facingRight = playerIndex === 0;
 
-      this.battleSim!.addFighter(sessionId, startX, facingRight, {
+      this.battleSim!.addFighter(sessionId, sessionId, startX, facingRight, {
         maxHp: config.health.maxHp,
         movementSpeed: config.movement.speed,
         abilities: config.abilities.map((a) => ({
