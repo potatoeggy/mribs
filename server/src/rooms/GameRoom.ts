@@ -170,19 +170,18 @@ export class GameRoom extends Room<GameStateSchema> {
     data?: unknown,
   ): void {
     if (this.state.phase !== "drawing") return;
+    const payload = {
+      ownerId: sender.sessionId,
+      action,
+      stroke: data,
+    };
     for (const client of this.clients) {
       if (client.sessionId === sender.sessionId) continue;
       if (this.spectators.has(client.sessionId)) {
-        client.send("drawingStroke", {
-          ownerId: sender.sessionId,
-          action,
-          stroke: data,
-        });
+        client.send("drawingStroke", payload);
       } else {
-        // Opponent player gets original message format
-        if (action === "stroke") client.send("opponentStroke", data);
-        else if (action === "undo") client.send("opponentStrokeUndo", {});
-        else client.send("opponentStrokeClear", {});
+        // Opponent player: also use drawingStroke so same format everywhere
+        client.send("drawingStroke", payload);
       }
     }
   }

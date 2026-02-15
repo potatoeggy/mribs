@@ -27,37 +27,42 @@ export default function ResultScreen({
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8 px-4">
       {isDraw ? (
-        <>
-          <h1 className="font-hand text-6xl font-bold text-yellow-600 text-center">
+        <div className="animate-victory-pop">
+          <h1 className="font-hand text-6xl font-bold text-yellow-600 text-center drop-shadow-[0_0_30px_rgba(234,179,8,0.5)]">
             DRAW!
           </h1>
-          <p className="font-hand text-2xl text-gray-600">Both fighters fell!</p>
-        </>
+          <p className="font-hand text-2xl text-gray-600 text-center mt-2">Both fighters fell!</p>
+        </div>
       ) : (
-        <>
+        <div className="animate-victory-pop text-center">
           <h1
-            className={`font-hand text-6xl font-bold text-center ${
-              spectator ? "text-blue-600" : isWinner ? "text-green-600" : "text-red-500"
+            className={`font-hand text-6xl font-bold ${
+              spectator
+                ? "text-blue-600 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]"
+                : isWinner
+                  ? "text-green-600 drop-shadow-[0_0_30px_rgba(34,197,94,0.5)]"
+                  : "text-red-500 drop-shadow-[0_0_30px_rgba(239,68,68,0.5)]"
             }`}
           >
             {spectator ? `${winnerName} WINS!` : isWinner ? "YOU WIN!" : "YOU LOSE!"}
           </h1>
-          <p className="font-hand text-2xl text-gray-600">
+          <p className="font-hand text-2xl text-gray-600 mt-2">
             {spectator ? "What a battle!" : isWinner ? "Your scribble reigns supreme!" : `${winnerName} wins!`}
           </p>
-        </>
+        </div>
       )}
 
       {!spectator && onPlayAgain && (
         <button
           onClick={onPlayAgain}
-          className="sketchy-button bg-yellow-300 border-yellow-600 text-yellow-800 font-hand text-2xl px-10 py-4 hover:bg-yellow-400 hover:scale-105 transition-all"
+          className="sketchy-button bg-yellow-300 border-yellow-600 text-yellow-800 font-hand text-2xl px-10 py-4 hover:bg-yellow-400 hover:scale-105 hover:shadow-[4px_4px_0_#1a1a1a] hover:-translate-y-0.5 transition-all duration-300 animate-pop-in"
+          style={{ animationDelay: "300ms" }}
         >
           Play Again!
         </button>
       )}
 
-      <p className="font-hand text-sm text-gray-400">
+      <p className="font-hand text-sm text-gray-400 animate-fade-in-up opacity-0" style={{ animationDelay: "500ms", animationFillMode: "forwards" }}>
         Returning to lobby in {timer}s...
       </p>
     </div>

@@ -5,12 +5,19 @@ import React from "react";
 interface InkMeterProps {
   fraction: number; // 0-1
   label?: string; // Optional custom label
+  /** Team color for the bar (e.g. from player's team) - matches drawing pen */
+  teamColor?: string;
 }
 
-export default function InkMeter({ fraction, label }: InkMeterProps) {
+export default function InkMeter({ fraction, label, teamColor }: InkMeterProps) {
   const pct = Math.round(fraction * 100);
-  const barColor =
-    fraction > 0.5 ? "#1a1a1a" : fraction > 0.2 ? "#f39c12" : "#e74c3c";
+  const barColor = teamColor
+    ? teamColor
+    : fraction > 0.5
+      ? "#1a1a1a"
+      : fraction > 0.2
+        ? "#f39c12"
+        : "#e74c3c";
 
   return (
     <div className="flex items-center gap-2 flex-1 max-w-xs mx-4">

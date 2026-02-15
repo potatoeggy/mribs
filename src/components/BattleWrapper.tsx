@@ -63,6 +63,8 @@ interface BattleWrapperProps {
 }
 
 const SUMMON_INK_COST = 50;
+/** Seconds to wait between spawning from history (prevents spam) */
+const HISTORY_SPAWN_COOLDOWN_SEC = 4;
 
 function parseRoomState(room: Room) {
   const state = room.state as Record<string, unknown>;
@@ -165,6 +167,8 @@ export default function BattleWrapper({
       spriteData: string;
     }>
   >([]);
+  const [historySpawnCooldownRemaining, setHistorySpawnCooldownRemaining] =
+    useState(0);
 
   const maybeCommentary = useCallback(
     async (
@@ -249,10 +253,22 @@ export default function BattleWrapper({
     [room],
   );
 
+  // Tick down history spawn cooldown
+  useEffect(() => {
+    if (historySpawnCooldownRemaining <= 0) return;
+    const id = setInterval(() => {
+      setHistorySpawnCooldownRemaining((prev) =>
+        Math.max(0, prev - 0.1),
+      );
+    }, 100);
+    return () => clearInterval(id);
+  }, [historySpawnCooldownRemaining]);
+
   const handleRespawnFromHistory = useCallback(
     (index: number) => {
       const summon = summonHistory[index];
       if (!summon || myInk < summon.inkCost) return;
+      if (historySpawnCooldownRemaining > 0) return;
 
       // Send directly to server
       room.send("summonFighter", {
@@ -262,8 +278,9 @@ export default function BattleWrapper({
       });
       lastDeductedInkRef.current = summon.inkCost;
       setMyInk((prev) => Math.max(0, prev - summon.inkCost));
+      setHistorySpawnCooldownRemaining(HISTORY_SPAWN_COOLDOWN_SEC);
     },
-    [room, summonHistory, myInk],
+    [room, summonHistory, myInk, historySpawnCooldownRemaining],
   );
 
   const extractSprite = async (imageData: string): Promise<string> => {
@@ -560,13 +577,17 @@ export default function BattleWrapper({
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
-      <div
-        className="relative w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
-      >
+        <div
+          className="relative w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-[6px_6px_0_rgba(0,0,0,0.2)] hover:shadow-[8px_8px_0_rgba(0,0,0,0.25)] transition-shadow duration-300"
+        >
         <div ref={containerRef} className="absolute inset-0" />
         {battleCountdownRemaining > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none z-10">
-            <div className="font-hand text-5xl font-bold text-white drop-shadow-lg text-center animate-pulse">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none z-10 backdrop-blur-[2px]">
+            <div
+              className={`font-hand text-5xl font-bold text-white text-center drop-shadow-[0_0_20px_rgba(255,255,255,0.3)] ${
+                battleCountdownRemaining <= 1 ? "animate-start-explode" : "animate-pulse"
+              }`}
+            >
               {battleCountdownRemaining > 5
                 ? "Ready..."
                 : battleCountdownRemaining > 4
@@ -622,17 +643,23 @@ export default function BattleWrapper({
           {/* History sidebar */}
           {summonHistory.length > 0 && (
             <div className="w-48 p-3 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg shrink-0">
-              <h4 className="font-hand text-sm font-bold text-gray-800 mb-2">
+              <h4 className="font-hand text-sm font-bold text-gray-800 mb-2 flex items-center justify-between">
                 History
+                {historySpawnCooldownRemaining > 0 && (
+                  <span className="text-xs text-amber-600 font-bold">
+                    {historySpawnCooldownRemaining.toFixed(1)}s
+                  </span>
+                )}
               </h4>
               <div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto overflow-x-visible">
                 {summonHistory.map((summon, index) => {
                   const canAfford = myInk >= summon.inkCost;
+                  const onCooldown = historySpawnCooldownRemaining > 0;
                   return (
                     <button
                       key={index}
                       onClick={() => handleRespawnFromHistory(index)}
-                      disabled={!canAfford}
+                      disabled={!canAfford || onCooldown}
                       className="p-2 bg-purple-100 hover:bg-purple-200 disabled:bg-gray-200 disabled:cursor-not-allowed border-2 border-purple-400 disabled:border-gray-300 rounded-lg transition-colors text-left min-w-0"
                       title={`${String(summon.config?.name ?? "")} - ${summon.inkCost.toFixed(0)} ink`}
                     >
