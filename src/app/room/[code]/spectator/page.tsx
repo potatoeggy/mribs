@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import type { Room } from "colyseus.js";
 import { joinAsSpectator } from "@/lib/colyseus";
@@ -75,6 +75,7 @@ interface SummonedFighterData {
 export default function SpectatorPage() {
   const params = useParams();
   const code = (params.code as string)?.toUpperCase();
+  const isInvalidCode = !code || code === "new";
 
   const [room, setRoom] = useState<Room | null>(null);
   const [phase, setPhase] = useState<string>("connecting");
@@ -88,9 +89,6 @@ export default function SpectatorPage() {
   const [error, setError] = useState<string>("");
   const [inkBudget, setInkBudget] = useState(5000);
   const [drawingTimeLimit, setDrawingTimeLimit] = useState(75);
-  const [spriteDataMap, setSpriteDataMap] = useState<Map<string, string>>(
-    new Map(),
-  );
   const [showResultScreen, setShowResultScreen] = useState(false);
   /** Strokes per player (ownerId -> Stroke[]) for spectator drawing view */
   const [strokesMap, setStrokesMap] = useState<Map<string, Stroke[]>>(new Map());
@@ -105,6 +103,20 @@ export default function SpectatorPage() {
   const resultPhaseStartRef = useRef<number>(0);
   const playerInkInitializedRef = useRef(false);
   const battleCountdownStartRef = useRef<number>(0);
+  const settersRef = useRef({
+    setStrokesMap,
+    setPlayer1Ink,
+    setPlayer2Ink,
+    setBattleCountdown,
+  });
+  useEffect(() => {
+    settersRef.current = {
+      setStrokesMap,
+      setPlayer1Ink,
+      setPlayer2Ink,
+      setBattleCountdown,
+    };
+  }, []);
   const RESULT_DELAY_MS = 1700;
   const BATTLE_COUNTDOWN_SEC = 6;
 
@@ -147,11 +159,7 @@ export default function SpectatorPage() {
   }, [spectatorUrl]);
 
   useEffect(() => {
-    if (!code || code === "new") {
-      setError("Invalid spectator URL");
-      setPhase("error");
-      return;
-    }
+    if (isInvalidCode) return;
 
     let mounted = true;
 
@@ -175,6 +183,7 @@ export default function SpectatorPage() {
           const newPhase = state.phase as string;
           const prevPhase = previousPhaseRef.current;
           previousPhaseRef.current = newPhase;
+          const s = settersRef.current;
           setPhase(newPhase);
           setTimer(Math.ceil(state.timer as number));
           setRoomCode(state.roomCode as string);
@@ -186,6 +195,21 @@ export default function SpectatorPage() {
             }
           } else {
             setShowResultScreen(false);
+          }
+          if (newPhase === "lobby") {
+            s.setStrokesMap(new Map());
+          }
+          if (newPhase === "drawing") {
+            s.setStrokesMap(new Map());
+          }
+          if (newPhase !== "battle" && newPhase !== "result") {
+            s.setPlayer1Ink(0);
+            s.setPlayer2Ink(0);
+            playerInkInitializedRef.current = false;
+            s.setBattleCountdown(0);
+          }
+          if (newPhase === "battle") {
+            battleCountdownStartRef.current = Date.now();
           }
           setInkBudget(state.inkBudget as number);
           setDrawingTimeLimit(state.drawingTimeLimit as number);
@@ -317,37 +341,7 @@ export default function SpectatorPage() {
       mounted = false;
       if (roomRef.current) roomRef.current.leave();
     };
-  }, [code]);
-
-  useEffect(() => {
-    if (phase === "drawing") {
-      setStrokesMap(new Map());
-    }
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase !== "battle" && phase !== "result") {
-      setPlayer1Ink(0);
-      setPlayer2Ink(0);
-      playerInkInitializedRef.current = false;
-    }
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase !== "battle") {
-      setBattleCountdown(0);
-      return;
-    }
-    battleCountdownStartRef.current = Date.now();
-    const tick = () => {
-      const elapsed = (Date.now() - battleCountdownStartRef.current) / 1000;
-      const remaining = Math.max(0, BATTLE_COUNTDOWN_SEC - elapsed);
-      setBattleCountdown(remaining);
-    };
-    tick();
-    const id = setInterval(tick, 100);
-    return () => clearInterval(id);
-  }, [phase]);
+  }, [code, isInvalidCode]);
 
   useEffect(() => {
     if (phase !== "result" || showResultScreen) return;
@@ -362,18 +356,22 @@ export default function SpectatorPage() {
   }, [phase, showResultScreen]);
 
   useEffect(() => {
-    setSpriteDataMap((prev) => {
-      let changed = false;
-      players.forEach((p, id) => {
-        if (p.spriteData && prev.get(id) !== p.spriteData) changed = true;
-      });
-      if (!changed) return prev;
-      const next = new Map(prev);
-      players.forEach((p, id) => {
-        if (p.spriteData) next.set(id, p.spriteData);
-      });
-      return next;
+    if (phase !== "battle") return;
+    const tick = () => {
+      const elapsed = (Date.now() - battleCountdownStartRef.current) / 1000;
+      const remaining = Math.max(0, BATTLE_COUNTDOWN_SEC - elapsed);
+      setBattleCountdown(remaining);
+    };
+    const id = setInterval(tick, 100);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  const spriteDataMap = useMemo(() => {
+    const next = new Map<string, string>();
+    players.forEach((p, id) => {
+      if (p.spriteData) next.set(id, p.spriteData);
     });
+    return next;
   }, [players]);
 
   const playerList = Array.from(players.values());
@@ -461,7 +459,7 @@ export default function SpectatorPage() {
               </div>
             </div>
             <div className="flex gap-4 flex-1 min-h-0">
-              {playerList.map((p, i) => (
+              {playerList.map((p) => (
                 <div key={p.id} className="flex-1 flex flex-col min-w-0">
                   <p className="font-hand text-base text-gray-500 text-center mb-1">
                     {p.name}&apos;s Drawing
@@ -501,6 +499,7 @@ export default function SpectatorPage() {
                     className="flex-1 flex flex-col items-center gap-3 border border-gray-300 rounded-lg p-5 bg-white max-w-xs"
                   >
                     {spriteDataMap.get(p.id) ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- dynamic base64 sprite data
                       <img
                         src={spriteDataMap.get(p.id)}
                         alt={p.fighterName || p.name}
