@@ -29,11 +29,15 @@ export async function createRoom(options?: Record<string, unknown>): Promise<Roo
   return await c.create("game", options);
 }
 
-export async function joinRoomById(roomId: string, retries = 3): Promise<Room> {
+export async function joinRoomById(
+  roomId: string,
+  options?: Record<string, unknown>,
+  retries = 3
+): Promise<Room> {
   const c = getColyseusClient();
   for (let i = 0; i < retries; i++) {
     try {
-      return await c.joinById(roomId, {});
+      return await c.joinById(roomId, options ?? {});
     } catch (err) {
       const isLocked = err instanceof Error && err.message.includes("is locked");
       if (!isLocked || i === retries - 1) throw err;
@@ -54,7 +58,14 @@ export async function joinOrCreate(
 ): Promise<Room> {
   if (code && code !== "new") {
     const roomId = await findRoomIdByCode(code);
-    return await joinRoomById(roomId);
+    return await joinRoomById(roomId, options);
   }
   return await createRoom(options);
+}
+
+/** Join an existing room as a spectator (read-only, can chat) */
+export async function joinAsSpectator(code: string): Promise<Room> {
+  const roomId = await findRoomIdByCode(code);
+  const c = getColyseusClient();
+  return await c.joinById(roomId, { spectator: true });
 }

@@ -6,8 +6,10 @@ interface ResultScreenProps {
   winnerId: string;
   mySessionId: string;
   playerNames: Map<string, string>;
-  onPlayAgain: () => void;
+  onPlayAgain?: () => void;
   timer: number;
+  /** Spectator mode: no Play Again button */
+  spectator?: boolean;
 }
 
 export default function ResultScreen({
@@ -16,6 +18,7 @@ export default function ResultScreen({
   playerNames,
   onPlayAgain,
   timer,
+  spectator = false,
 }: ResultScreenProps) {
   const isWinner = winnerId === mySessionId;
   const isDraw = winnerId === "draw";
@@ -34,23 +37,25 @@ export default function ResultScreen({
         <>
           <h1
             className={`font-hand text-6xl font-bold text-center ${
-              isWinner ? "text-green-600" : "text-red-500"
+              spectator ? "text-blue-600" : isWinner ? "text-green-600" : "text-red-500"
             }`}
           >
-            {isWinner ? "YOU WIN!" : "YOU LOSE!"}
+            {spectator ? `${winnerName} WINS!` : isWinner ? "YOU WIN!" : "YOU LOSE!"}
           </h1>
           <p className="font-hand text-2xl text-gray-600">
-            {isWinner ? "Your scribble reigns supreme!" : `${winnerName} wins!`}
+            {spectator ? "What a battle!" : isWinner ? "Your scribble reigns supreme!" : `${winnerName} wins!`}
           </p>
         </>
       )}
 
-      <button
-        onClick={onPlayAgain}
-        className="sketchy-button bg-yellow-300 border-yellow-600 text-yellow-800 font-hand text-2xl px-10 py-4 hover:bg-yellow-400 hover:scale-105 transition-all"
-      >
-        Play Again!
-      </button>
+      {!spectator && onPlayAgain && (
+        <button
+          onClick={onPlayAgain}
+          className="sketchy-button bg-yellow-300 border-yellow-600 text-yellow-800 font-hand text-2xl px-10 py-4 hover:bg-yellow-400 hover:scale-105 transition-all"
+        >
+          Play Again!
+        </button>
+      )}
 
       <p className="font-hand text-sm text-gray-400">
         Returning to lobby in {timer}s...

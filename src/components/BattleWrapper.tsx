@@ -58,6 +58,8 @@ interface BattleWrapperProps {
   battleCountdownRemaining?: number;
   /** Called when summon ink changes (for parent to sync InkBar above battle) */
   onSummonInkChange?: (ink: number) => void;
+  /** Spectator mode: no controls, no summon UI */
+  spectator?: boolean;
 }
 
 const SUMMON_INK_COST = 50;
@@ -133,6 +135,7 @@ export default function BattleWrapper({
   onCommentary,
   battleCountdownRemaining = 0,
   onSummonInkChange,
+  spectator = false,
 }: BattleWrapperProps) {
   const battleReady = battleCountdownRemaining <= 0;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -545,10 +548,11 @@ export default function BattleWrapper({
     };
   }, [spriteDataMap]);
 
-  // Track player's ink and team color
+  // Track player's ink and team color (skip for spectators)
   // Ink for SUMMON display: only init from server when battle starts, then only decrease on summon
   // (server's player.ink changes every tick from battle sim moves/abilities - we ignore that)
   useEffect(() => {
+    if (spectator) return;
     const updatePlayerData = () => {
       const state = room.state as Record<string, unknown>;
       const phase = state.phase as string;
@@ -577,7 +581,7 @@ export default function BattleWrapper({
     return () => {
       room.onStateChange.remove(updatePlayerData);
     };
-  }, [room, mySessionId]);
+  }, [room, mySessionId, spectator]);
 
   // Revert ink deduction if server rejects summon (e.g. not enough ink race condition)
   useEffect(() => {
@@ -627,8 +631,8 @@ export default function BattleWrapper({
         )}
       </div>
 
-      {/* Inline summon UI - always visible during battle */}
-      {battleReady && (
+      {/* Inline summon UI - always visible during battle (hidden for spectators) */}
+      {battleReady && !spectator && (
         <div className="w-full max-w-[800px] flex gap-3">
           {/* Main summon area */}
           <div className="flex-1 p-4 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg">
