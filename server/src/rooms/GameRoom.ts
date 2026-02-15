@@ -48,6 +48,7 @@ export class GameRoom extends Room<GameStateSchema> {
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private playerConfigs: Map<string, FighterConfig> = new Map();
   private playerDrawings: Map<string, string> = new Map(); // sessionId -> base64 PNG
+  private playerInkSpent: Map<string, number> = new Map();
   private playerGestureMoves: Map<string, GestureMove[]> = new Map();
   private gestureCooldowns: Map<string, number> = new Map(); // "sessionId" -> time until ready (global cooldown)
   private readonly GESTURE_COOLDOWN_SEC = 2;
@@ -239,8 +240,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.playerDrawings.set(client.sessionId, data.imageData);
 
     if (data.inkSpent !== undefined) {
-      const inkSpentKey = `${client.sessionId}_inkSpent`;
-      (this as Record<string, number>)[inkSpentKey] = data.inkSpent;
+      this.playerInkSpent.set(client.sessionId, data.inkSpent);
     }
 
     let allSubmitted = true;
