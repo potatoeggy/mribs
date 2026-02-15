@@ -5,6 +5,7 @@ import type { Room } from "colyseus.js";
 import type { GestureMove } from "@shared/types";
 import BattleGestureControls from "./BattleGestureControls";
 import SummonDrawingModal from "./SummonDrawingModal";
+import { extractSprite as extractSpriteLib, autoDetectBounds } from "@/lib/sprites";
 
 const TAP_MAX_MS = 250;
 const TAP_MAX_DIST = 20;
@@ -294,45 +295,29 @@ export default function BattleWrapper({
   }, [room, summonHistory, myInk]);
 
   const extractSprite = async (imageData: string, bounds: { x: number; y: number; width: number; height: number }): Promise<string> => {
-    return new Promise((resolve) => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        resolve(imageData);
-        return;
+    try {
+      // Add generous padding to bounds to ensure we capture the full drawing
+      const padding = 20;
+      const paddedBounds = {
+        x: Math.max(0, bounds.x - padding),
+        y: Math.max(0, bounds.y - padding),
+        width: bounds.width + padding * 2,
+        height: bounds.height + padding * 2,
+      };
+
+      // Use the library function which handles transparency properly
+      return await extractSpriteLib(imageData, paddedBounds);
+    } catch (error) {
+      console.error("Failed to extract sprite, falling back to auto-detect:", error);
+      // Fallback: auto-detect bounds and try again
+      try {
+        const detectedBounds = await autoDetectBounds(imageData);
+        return await extractSpriteLib(imageData, detectedBounds);
+      } catch {
+        // Final fallback: return original image
+        return imageData;
       }
-
-      const img = new Image();
-      img.onload = () => {
-        canvas.width = bounds.width;
-        canvas.height = bounds.height;
-
-        try {
-          ctx.drawImage(
-            img,
-            bounds.x,
-            bounds.y,
-            bounds.width,
-            bounds.height,
-            0,
-            0,
-            bounds.width,
-            bounds.height
-          );
-          resolve(canvas.toDataURL("image/png"));
-        } catch (error) {
-          console.error("Failed to extract sprite:", error);
-          resolve(imageData);
-        }
-      };
-
-      img.onerror = () => {
-        console.error("Failed to load image for sprite extraction");
-        resolve(imageData);
-      };
-
-      img.src = imageData;
-    });
+    }
   };
 
   useEffect(() => {
