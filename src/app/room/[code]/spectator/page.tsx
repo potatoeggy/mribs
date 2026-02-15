@@ -392,7 +392,9 @@ export default function SpectatorPage() {
   if (phase === "error" || error) {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen gap-6 p-8">
-        <h1 className="font-hand text-4xl font-bold text-red-500 shake">Oops!</h1>
+        <h1 className="font-hand text-4xl font-bold text-red-500 shake">
+          Oops!
+        </h1>
         <p className="font-hand text-xl text-gray-600 text-center">
           {error || "Something went wrong"}
         </p>
@@ -413,9 +415,29 @@ export default function SpectatorPage() {
           Connecting as spectator<span className="loading-dots"></span>
         </h1>
         <div className="wobble mt-4">
-          <svg width="60" height="60" viewBox="0 0 80 80" className="opacity-40">
-            <circle cx="40" cy="40" r="30" fill="none" stroke="#1a1a1a" strokeWidth="3" strokeDasharray="10 5">
-              <animateTransform attributeName="transform" type="rotate" from="0 40 40" to="360 40 40" dur="1.5s" repeatCount="indefinite" />
+          <svg
+            width="60"
+            height="60"
+            viewBox="0 0 80 80"
+            className="opacity-40"
+          >
+            <circle
+              cx="40"
+              cy="40"
+              r="30"
+              fill="none"
+              stroke="#1a1a1a"
+              strokeWidth="3"
+              strokeDasharray="10 5"
+            >
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from="0 40 40"
+                to="360 40 40"
+                dur="1.5s"
+                repeatCount="indefinite"
+              />
             </circle>
           </svg>
         </div>
@@ -426,7 +448,9 @@ export default function SpectatorPage() {
   if (phase === "disconnected") {
     return (
       <main className="flex flex-col items-center justify-center min-h-screen gap-6 p-8">
-        <h1 className="font-hand text-4xl font-bold text-gray-500">Disconnected</h1>
+        <h1 className="font-hand text-4xl font-bold text-gray-500">
+          Disconnected
+        </h1>
         <Link
           href="/"
           className="sketchy-button bg-yellow-300 px-6 py-3 text-xl font-hand hover:bg-yellow-400 hover:shadow-[4px_4px_0_#1a1a1a] transition-all hover:-translate-y-0.5"

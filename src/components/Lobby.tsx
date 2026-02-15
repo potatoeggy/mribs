@@ -65,12 +65,18 @@ export default function Lobby({
       <h1 className="font-hand text-6xl font-bold text-gray-800 text-center leading-tight animate-fade-in-up">
         Scribble Fighters
       </h1>
-      <p className="font-hand text-xl text-gray-500 text-center max-w-md animate-fade-in-up opacity-0" style={{ animationDelay: "100ms", animationFillMode: "forwards" }}>
+      <p
+        className="font-hand text-xl text-gray-500 text-center max-w-md animate-fade-in-up opacity-0"
+        style={{ animationDelay: "100ms", animationFillMode: "forwards" }}
+      >
         Draw your champion, bring it to life, and fight!
       </p>
 
       {/* Room code */}
-      <div className="flex flex-col items-center gap-2 animate-fade-in-up opacity-0" style={{ animationDelay: "200ms", animationFillMode: "forwards" }}>
+      <div
+        className="flex flex-col items-center gap-2 animate-fade-in-up opacity-0"
+        style={{ animationDelay: "200ms", animationFillMode: "forwards" }}
+      >
         <p className="font-hand text-lg text-gray-600">
           {isSpectator ? "Watching Room:" : "Room Code:"}
         </p>
@@ -80,7 +86,9 @@ export default function Lobby({
         >
           {roomCode || "..."}
         </button>
-        <p className={`font-hand text-sm transition-all duration-300 ${copied ? "text-green-600 font-bold scale-110" : "text-gray-400"}`}>
+        <p
+          className={`font-hand text-sm transition-all duration-300 ${copied ? "text-green-600 font-bold scale-110" : "text-gray-400"}`}
+        >
           {copied ? "✓ Copied!" : "Click to copy"}
         </p>
         {!isSpectator && spectatorUrl && onCopySpectatorLinkAsHost && (
@@ -94,7 +102,10 @@ export default function Lobby({
       </div>
 
       {/* Player status - glowing indicators when connected */}
-      <div className="flex items-center gap-4 animate-fade-in-up opacity-0" style={{ animationDelay: "250ms", animationFillMode: "forwards" }}>
+      <div
+        className="flex items-center gap-4 animate-fade-in-up opacity-0"
+        style={{ animationDelay: "250ms", animationFillMode: "forwards" }}
+      >
         <div className="flex items-center gap-2">
           <div
             className={`w-4 h-4 rounded-full transition-all duration-500 ${
@@ -105,7 +116,9 @@ export default function Lobby({
           />
           <span className="font-hand text-lg">Player 1</span>
         </div>
-        <span className="font-hand text-2xl text-gray-400 animate-pulse">VS</span>
+        <span className="font-hand text-2xl text-gray-400 animate-pulse">
+          VS
+        </span>
         <div className="flex items-center gap-2">
           <div
             className={`w-4 h-4 rounded-full transition-all duration-500 ${
@@ -177,7 +190,10 @@ export default function Lobby({
 
       {/* Ready button (hidden for spectators) */}
       {!isSpectator && (
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "300ms", animationFillMode: "forwards" }}>
+        <div
+          className="animate-fade-in-up opacity-0"
+          style={{ animationDelay: "300ms", animationFillMode: "forwards" }}
+        >
           <button
             onClick={onReady}
             disabled={isReady || playerCount < 2}

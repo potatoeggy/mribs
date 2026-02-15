@@ -27,7 +27,12 @@ export default function Home() {
           viewBox="0 0 40 40"
           fill="none"
         >
-          <path d="M5,20 Q15,5 30,20 Q20,35 5,20" stroke="currentColor" strokeWidth="1.5" fill="none" />
+          <path
+            d="M5,20 Q15,5 30,20 Q20,35 5,20"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            fill="none"
+          />
         </svg>
         <svg
           className="absolute top-40 right-[15%] w-12 h-12 text-amber-300/30 animate-float"
@@ -35,7 +40,14 @@ export default function Home() {
           viewBox="0 0 40 40"
           fill="none"
         >
-          <circle cx="20" cy="20" r="8" stroke="currentColor" strokeWidth="1.5" fill="none" />
+          <circle
+            cx="20"
+            cy="20"
+            r="8"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            fill="none"
+          />
         </svg>
         <svg
           className="absolute bottom-32 left-[20%] w-14 h-14 text-blue-300/20 animate-float"
@@ -43,7 +55,12 @@ export default function Home() {
           viewBox="0 0 40 40"
           fill="none"
         >
-          <path d="M10,30 L20,10 L30,30 L20,25 Z" stroke="currentColor" strokeWidth="1" fill="none" />
+          <path
+            d="M10,30 L20,10 L30,30 L20,25 Z"
+            stroke="currentColor"
+            strokeWidth="1"
+            fill="none"
+          />
         </svg>
         <svg
           className="absolute bottom-48 right-[12%] w-20 h-20 text-gray-300/30 animate-float"
@@ -51,7 +68,12 @@ export default function Home() {
           viewBox="0 0 200 20"
           fill="none"
         >
-          <path d="M0,10 Q50,2 100,10 Q150,18 200,10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <path
+            d="M0,10 Q50,2 100,10 Q150,18 200,10"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
       </div>
 
@@ -59,7 +81,11 @@ export default function Home() {
       <div className="flex flex-col items-center gap-4 relative z-10">
         <h1
           className="font-hand text-7xl font-bold text-gray-800 animate-fade-in-up opacity-0"
-          style={{ animationDelay: "0ms", animationFillMode: "forwards", opacity: 0 }}
+          style={{
+            animationDelay: "0ms",
+            animationFillMode: "forwards",
+            opacity: 0,
+          }}
         >
           <span className="inline-block wobble">Scribble Fighters</span>
         </h1>
@@ -132,12 +158,22 @@ export default function Home() {
         className="flex flex-col items-center gap-3 mt-8 opacity-80 max-w-lg relative z-10 animate-fade-in-up opacity-0"
         style={{ animationDelay: "500ms", animationFillMode: "forwards" }}
       >
-        <h2 className="font-hand text-2xl font-bold text-gray-700">How to Play</h2>
+        <h2 className="font-hand text-2xl font-bold text-gray-700">
+          How to Play
+        </h2>
         <div className="flex flex-col gap-3 text-lg text-gray-500 text-center">
           <p className="font-hand">1. Create or join a room with a friend</p>
-          <p className="font-hand">2. Draw your creature—the AI brings it to life with unique abilities</p>
-          <p className="font-hand">3. Watch your champions battle in real-time (they fight on their own!)</p>
-          <p className="font-hand">4. Summon reinforcements during battle using ink—draw new fighters to turn the tide and win!</p>
+          <p className="font-hand">
+            2. Draw your creature—the AI brings it to life with unique abilities
+          </p>
+          <p className="font-hand">
+            3. Watch your champions battle in real-time (they fight on their
+            own!)
+          </p>
+          <p className="font-hand">
+            4. Summon reinforcements during battle using ink—draw new fighters
+            to turn the tide and win!
+          </p>
         </div>
       </div>
 
@@ -145,7 +181,8 @@ export default function Home() {
         className="font-hand text-sm text-gray-400 mt-8 relative z-10 animate-fade-in-up opacity-0"
         style={{ animationDelay: "600ms", animationFillMode: "forwards" }}
       >
-        Tip: Spend ink wisely when drawing—you&apos;ll use it to summon reinforcements in battle!
+        Tip: Spend ink wisely when drawing—you&apos;ll use it to summon
+        reinforcements in battle!
       </p>
     </main>
   );

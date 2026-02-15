@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import FloatingDoodles from "@/components/FloatingDoodles";
 
 export const metadata: Metadata = {
   title: "Scribble Fighters",
@@ -13,7 +14,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-hand antialiased min-h-screen">
+      <body className="font-hand antialiased min-h-screen relative">
+        <FloatingDoodles />
         {children}
       </body>
     </html>

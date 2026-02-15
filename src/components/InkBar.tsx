@@ -10,11 +10,19 @@ interface InkBarProps {
   color: string;
 }
 
-export default function InkBar({ ink, maxInk, name, side, color }: InkBarProps) {
+export default function InkBar({
+  ink,
+  maxInk,
+  name,
+  side,
+  color,
+}: InkBarProps) {
   const inkPct = Math.max(0, Math.min(100, (ink / maxInk) * 100));
 
   return (
-    <div className={`flex flex-col ${side === "left" ? "items-start" : "items-end"} gap-1`}>
+    <div
+      className={`flex flex-col ${side === "left" ? "items-start" : "items-end"} gap-1`}
+    >
       <div className="font-hand text-lg font-bold text-gray-800">{name}</div>
       <div className="w-64 bg-gray-200 h-8 rounded-full border-2 border-gray-800 overflow-hidden relative shadow-inner group">
         <div

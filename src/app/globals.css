@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -17,22 +17,21 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-hand: 'Caveat', 'Patrick Hand', cursive;
+  --font-hand: "Caveat", "Patrick Hand", cursive;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Caveat', 'Patrick Hand', cursive;
-  background-image: 
-    linear-gradient(var(--paper-grid) 1px, transparent 1px);
+  font-family: "Caveat", "Patrick Hand", cursive;
+  background-image: linear-gradient(var(--paper-grid) 1px, transparent 1px);
   background-size: 100% 30px;
   min-height: 100vh;
 }
 
 /* Scribble-style font utility */
 .font-hand {
-  font-family: 'Caveat', 'Patrick Hand', cursive;
+  font-family: "Caveat", "Patrick Hand", cursive;
 }
 
 /* Sketchy button style */
@@ -41,7 +40,9 @@ body {
   border: 2px solid #1a1a1a;
   border-radius: 4px;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
   box-shadow: 2px 2px 0px #1a1a1a;
 }
 
@@ -68,10 +69,10 @@ body {
 }
 
 .sketchy-border::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: -3px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 5px;
   pointer-events: none;
 }
@@ -81,19 +82,18 @@ body {
   background: #fefef6;
   border: 2px solid #1a1a1a;
   border-radius: 4px;
-  box-shadow: 3px 3px 0px rgba(0,0,0,0.15);
+  box-shadow: 3px 3px 0px rgba(0, 0, 0, 0.15);
   position: relative;
 }
 
 .paper-card::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: 
-    linear-gradient(var(--paper-grid) 1px, transparent 1px);
+  background-image: linear-gradient(var(--paper-grid) 1px, transparent 1px);
   background-size: 100% 30px;
   opacity: 0.3;
   pointer-events: none;
@@ -102,10 +102,19 @@ body {
 
 /* Wobble animation for game elements */
 @keyframes wobble {
-  0%, 100% { transform: rotate(-1deg); }
-  25% { transform: rotate(0.5deg); }
-  50% { transform: rotate(1deg); }
-  75% { transform: rotate(-0.5deg); }
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  25% {
+    transform: rotate(0.5deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+  75% {
+    transform: rotate(-0.5deg);
+  }
 }
 
 .wobble {
@@ -114,9 +123,23 @@ body {
 
 /* Shake animation for damage */
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-  20%, 40%, 60%, 80% { transform: translateX(4px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-4px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(4px);
+  }
 }
 
 .shake {
@@ -125,8 +148,13 @@ body {
 
 /* Pulse animation */
 @keyframes scribble-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .scribble-pulse {
@@ -140,7 +168,7 @@ body {
 }
 
 .scribble-underline::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -4px;
   left: -2px;
@@ -155,7 +183,7 @@ body {
 /* Input styles */
 input[type="text"],
 input[type="number"] {
-  font-family: 'Caveat', 'Patrick Hand', cursive;
+  font-family: "Caveat", "Patrick Hand", cursive;
   font-size: 1.2rem;
   border: 2px solid #1a1a1a;
   border-radius: 3px;
@@ -189,7 +217,7 @@ input[type="range"]::-webkit-slider-thumb {
   background: #1a1a1a;
   cursor: pointer;
   border: 2px solid #fefef6;
-  box-shadow: 1px 1px 0px rgba(0,0,0,0.3);
+  box-shadow: 1px 1px 0px rgba(0, 0, 0, 0.3);
 }
 
 /* Scrollbar hiding for game */
@@ -203,13 +231,21 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Loading dots animation */
 @keyframes loading-dots {
-  0%, 20% { content: '.'; }
-  40% { content: '..'; }
-  60%, 100% { content: '...'; }
+  0%,
+  20% {
+    content: ".";
+  }
+  40% {
+    content: "..";
+  }
+  60%,
+  100% {
+    content: "...";
+  }
 }
 
 .loading-dots::after {
-  content: '...';
+  content: "...";
   animation: loading-dots 1.5s infinite;
 }
 
@@ -232,12 +268,24 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* Stagger delays for sequential entrances */
-.animate-delay-100 { animation-delay: 100ms; }
-.animate-delay-200 { animation-delay: 200ms; }
-.animate-delay-300 { animation-delay: 300ms; }
-.animate-delay-400 { animation-delay: 400ms; }
-.animate-delay-500 { animation-delay: 500ms; }
-.animate-delay-600 { animation-delay: 600ms; }
+.animate-delay-100 {
+  animation-delay: 100ms;
+}
+.animate-delay-200 {
+  animation-delay: 200ms;
+}
+.animate-delay-300 {
+  animation-delay: 300ms;
+}
+.animate-delay-400 {
+  animation-delay: 400ms;
+}
+.animate-delay-500 {
+  animation-delay: 500ms;
+}
+.animate-delay-600 {
+  animation-delay: 600ms;
+}
 
 /* Pop-in scale */
 @keyframes pop-in {
@@ -257,8 +305,13 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Gentle floating - decorative elements */
 @keyframes float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-8px) rotate(1deg); }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+  }
 }
 
 .animate-float {
@@ -267,18 +320,22 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Glow pulse - for highlights */
 @keyframes glow-pulse {
-  0%, 100% {
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4),
+  0%,
+  100% {
+    box-shadow:
+      0 0 12px rgba(245, 158, 11, 0.4),
       0 0 24px rgba(245, 158, 11, 0.2);
   }
   50% {
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.6),
+    box-shadow:
+      0 0 20px rgba(245, 158, 11, 0.6),
       0 0 40px rgba(245, 158, 11, 0.3);
   }
 }
 
 @keyframes glow-pulse-green {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
   }
   50% {
@@ -296,8 +353,12 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Shimmer - shine sweep across */
 @keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
 }
 
 .animate-shimmer {
@@ -335,13 +396,15 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* VS dramatic pulse */
 @keyframes vs-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     text-shadow: 0 0 0 transparent;
   }
   50% {
     transform: scale(1.15);
-    text-shadow: 0 0 30px rgba(239, 68, 68, 0.6),
+    text-shadow:
+      0 0 30px rgba(239, 68, 68, 0.6),
       0 0 60px rgba(239, 68, 68, 0.3);
   }
 }
@@ -425,13 +488,18 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Ink bar shine overlay */
 @keyframes ink-shine {
-  0% { left: -100%; }
-  100% { left: 100%; }
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
 }
 
 /* Subtle gradient border animation */
 @keyframes border-glow {
-  0%, 100% {
+  0%,
+  100% {
     border-color: rgba(26, 26, 26, 0.3);
   }
   50% {
@@ -441,6 +509,10 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Paper texture subtle movement */
 @keyframes paper-drift {
-  0% { background-position: 0 0; }
-  100% { background-position: 30px 0; }
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 30px 0;
+  }
 }
