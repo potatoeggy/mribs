@@ -385,9 +385,12 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
-  private playSwipeAttack(attacker: FighterDisplay, target: FighterDisplay, action: string): void {
-    const fromX = attacker.sprite.x;
-    const fromY = attacker.sprite.y;
+  private playSwipeAttack(attacker: FighterDisplay, target: FighterDisplay, _action: string): void {
+    const sprite = attacker.sprite;
+    const fromX = sprite.x;
+    const fromY = sprite.y;
+    const returnX = attacker.targetX;
+    const returnY = attacker.targetY;
     const toX = target.targetX;
     const toY = target.targetY;
     const dx = toX - fromX;
@@ -395,82 +398,63 @@ export class BattleScene extends Phaser.Scene {
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     const ux = dx / len;
     const uy = dy / len;
-    const angle = Math.atan2(uy, ux);
-    const actionLower = action.toLowerCase();
 
-    const slashLen = 95;
-    const g = this.add.graphics();
-    g.setDepth(25);
+    // Overshoot past the target by 40px
+    const pastX = toX + ux * 40;
+    const pastY = toY + uy * 40;
 
-    if (actionLower.includes("scratch") || actionLower.includes("claw")) {
-      const spread = 0.35;
-      for (let i = -1; i <= 1; i++) {
-        const a = angle + i * spread;
-        const ex = fromX + Math.cos(a) * slashLen;
-        const ey = fromY + Math.sin(a) * slashLen;
-        g.lineStyle(5, 0x1a1a1a, 1);
-        g.beginPath();
-        g.moveTo(fromX, fromY);
-        g.lineTo(ex, ey);
-        g.strokePath();
-      }
-    } else if (actionLower.includes("bite") || actionLower.includes("chomp")) {
-      const r = 35;
-      g.lineStyle(8, 0x1a1a1a, 1);
-      g.beginPath();
-      g.arc(fromX + ux * 25, fromY + uy * 25, r, angle - 0.8, angle + 0.8);
-      g.strokePath();
-      g.beginPath();
-      g.arc(fromX + ux * 35, fromY + uy * 35, r * 0.7, angle - 0.6, angle + 0.6);
-      g.strokePath();
-    } else if (actionLower.includes("slash") || actionLower.includes("cut")) {
-      const ex = fromX + Math.cos(angle) * slashLen;
-      const ey = fromY + Math.sin(angle) * slashLen;
-      g.lineStyle(10, 0x1a1a1a, 1);
-      g.beginPath();
-      g.moveTo(fromX, fromY);
-      g.lineTo(ex, ey);
-      g.strokePath();
-    } else {
-      const spread = 0.25;
-      for (let i = -1; i <= 1; i++) {
-        const a = angle + i * spread;
-        const ex = fromX + Math.cos(a) * slashLen;
-        const ey = fromY + Math.sin(a) * slashLen;
-        g.lineStyle(6, 0x1a1a1a, 1);
-        g.beginPath();
-        g.moveTo(fromX, fromY);
-        g.lineTo(ex, ey);
-        g.strokePath();
-      }
+    attacker.ignoreLerpUntil = this.time.now + 500;
+
+    // Spawn afterimage trail during the dash using the fighter's actual sprite
+    const trailCount = 4;
+    for (let i = 0; i < trailCount; i++) {
+      this.time.delayedCall(i * 25, () => {
+        const t = (i + 1) / (trailCount + 1);
+        const trailX = fromX + (pastX - fromX) * t;
+        const trailY = fromY + (pastY - fromY) * t;
+        let ghost: Phaser.GameObjects.GameObject & { setDepth: (d: number) => void };
+        if (sprite instanceof Phaser.GameObjects.Image) {
+          const img = this.add.image(trailX, trailY, sprite.texture.key);
+          img.setDisplaySize(60, 60);
+          img.setAlpha(0.35);
+          img.setFlipX(sprite.flipX);
+          ghost = img;
+        } else {
+          const rect = this.add.rectangle(trailX, trailY, 50, 60, 0x1a1a1a, 0.3);
+          ghost = rect;
+        }
+        ghost.setDepth(2);
+        this.tweens.add({
+          targets: ghost,
+          alpha: 0,
+          scaleX: 0.6,
+          scaleY: 0.6,
+          duration: 200,
+          ease: "Quad.Out",
+          onComplete: () => (ghost as Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle).destroy(),
+        });
+      });
     }
 
-    g.setScale(0.1);
+    // Dash through the opponent and past them
     this.tweens.add({
-      targets: g,
-      scaleX: 1,
-      scaleY: 1,
-      duration: 80,
+      targets: sprite,
+      x: pastX,
+      y: pastY,
+      duration: 120,
       ease: "Cubic.Out",
-    });
-    this.tweens.add({
-      targets: g,
-      alpha: 0,
-      duration: 300,
-      delay: 150,
-      onComplete: () => g.destroy(),
-    });
-
-    attacker.ignoreLerpUntil = this.time.now + 220;
-    const lungeX = fromX + ux * 35;
-    const lungeY = fromY + uy * 20;
-    this.tweens.add({
-      targets: attacker.sprite,
-      x: lungeX,
-      y: lungeY,
-      duration: 90,
-      yoyo: true,
-      ease: "Cubic.Out",
+      onComplete: () => {
+        // Snap back to original position with bounce
+        this.time.delayedCall(80, () => {
+          this.tweens.add({
+            targets: sprite,
+            x: returnX,
+            y: returnY,
+            duration: 220,
+            ease: "Back.easeOut",
+          });
+        });
+      },
     });
   }
 

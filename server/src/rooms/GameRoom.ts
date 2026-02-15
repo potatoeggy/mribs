@@ -204,7 +204,7 @@ export class GameRoom extends Room<GameStateSchema> {
 
     if (this.playerConfigs.size === this.state.players.size) {
       this.clearIntervals();
-      this.state.timer = 8;
+      this.state.timer = 5;
       this.timerInterval = setInterval(() => {
         this.state.timer -= 1;
         if (this.state.timer <= 0) {
