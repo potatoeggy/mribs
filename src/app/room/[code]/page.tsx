@@ -405,7 +405,7 @@ export default function GameRoomPage() {
         const fallbackConfig = {
           name: "Scribble Warrior",
           description: "A brave scribble!",
-          health: { maxHp: 100 },
+          health: { maxHp: 750 },
           movement: { speed: 3, type: "walk" },
           abilities: [
             { type: "melee", params: { damage: 15, range: 40, cooldown: 0.8 } },

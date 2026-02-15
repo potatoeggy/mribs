@@ -232,6 +232,9 @@ function ensureGestureMoves(config: FighterConfig): GestureMove[] {
 function validateAndFixConfig(config: FighterConfig): FighterConfig {
   // Clamp health (5x multiplier for longer fights)
   config.health.maxHp = clamp(config.health.maxHp, 250, 750);
+  // Bump initial character HP by 1.5x so drawn fighters feel beefier
+  config.health.maxHp = Math.round(config.health.maxHp * 1.5);
+  config.health.maxHp = clamp(config.health.maxHp, 375, 1125);
 
   // Clamp movement
   config.movement.speed = clamp(config.movement.speed, 1, 5);
@@ -272,7 +275,7 @@ export function fallbackFighterConfig(): FighterConfig {
   return {
     name: "Scribble Warrior",
     description: "A brave scribble that fights with determination!",
-    health: { maxHp: 500 },
+    health: { maxHp: 750 }, // 500 * 1.5 for initial character HP bump
     movement: { speed: 3, type: "walk" },
     abilities: [
       {
