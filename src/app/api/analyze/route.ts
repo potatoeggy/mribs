@@ -14,16 +14,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      // Return a fallback config for development without API key
-      console.warn("No OpenAI API key configured, using fallback fighter config");
+      console.warn(
+        "[analyze] No OPENAI_API_KEY - using fallback. Set OPENAI_API_KEY in production!"
+      );
       return NextResponse.json(fallbackFighterConfig());
     }
 
     const config = await analyzeDrawing(imageData, inkSpent || 100);
     return NextResponse.json(config);
   } catch (error) {
-    console.error("AI analysis failed:", error);
-    // Return fallback on error
+    console.error("[analyze] AI analysis failed:", error);
     return NextResponse.json(fallbackFighterConfig());
   }
 }

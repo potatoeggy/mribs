@@ -12,7 +12,7 @@ export const NETWORK_SEND_RATE = 20; // fps
 
 export const PHASE_DURATIONS = {
   drawing: 75, // seconds (configurable)
-  analyzing: 10, // max seconds to wait for AI
+  analyzing: 25, // max seconds to wait for AI (prod needs more: cold starts, OpenAI latency)
   reveal: 5, // seconds to show VS screen
   result: 10, // seconds before auto-return to lobby
 };

@@ -371,12 +371,19 @@ export default function GameRoomPage() {
     async (r: Room, imageData: string, inkSpent: number) => {
       setIsAnalyzing(true);
       try {
-        // Call AI analysis API
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
         const response = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageData, inkSpent }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Analysis failed: ${response.status}`);
+        }
 
         const config: FighterConfig = await response.json();
         setMyFighterConfig(config);

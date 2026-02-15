@@ -28,6 +28,8 @@ cp .env.local.example .env.local
 # Add your OPENAI_API_KEY to .env.local
 ```
 
+**Production:** Set `OPENAI_API_KEY` in your deployment env. Without it, all fighters become "Scribble Warrior" (fallback). The analyze phase has a 25s timeout; cold starts and latency can cause timeouts if the API is slow.
+
 ### 3. Start the game server
 
 ```bash

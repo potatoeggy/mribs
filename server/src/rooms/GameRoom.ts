@@ -302,13 +302,7 @@ export class GameRoom extends Room<GameStateSchema> {
 
     if (this.playerConfigs.size === this.state.players.size) {
       this.clearIntervals();
-      this.state.timer = 5;
-      this.timerInterval = setInterval(() => {
-        this.state.timer -= 1;
-        if (this.state.timer <= 0) {
-          this.startBattle();
-        }
-      }, 1000);
+      this.startRevealPhase();
     }
   }
 
@@ -484,16 +478,25 @@ export class GameRoom extends Room<GameStateSchema> {
     this.timerInterval = setInterval(() => {
       this.state.timer -= 1;
       if (this.state.timer <= 0) {
+        const fallback = this.fallbackConfig();
         this.state.players.forEach((p) => {
           if (!this.playerConfigs.has(p.id)) {
-            this.playerConfigs.set(p.id, this.fallbackConfig());
-            p.fighterName = "Scribble Warrior";
-            p.fighterDescription = "A brave scribble!";
-            p.maxHp = 500;
-            p.hp = 500;
+            this.playerConfigs.set(p.id, fallback);
+            p.fighterName = fallback.name;
+            p.fighterDescription = fallback.description;
+            p.maxHp = fallback.health.maxHp;
+            p.hp = fallback.health.maxHp;
+            this.playerGestureMoves.set(p.id, [
+              { id: "tap-1", gesture: "tap", action: "Pounce", power: 8 },
+              { id: "swipe-1", gesture: "swipe", action: "Scratch", power: 14 },
+            ]);
+            p.gestureMoveSummary = JSON.stringify([
+              { action: "Pounce", power: 8 },
+              { action: "Scratch", power: 14 },
+            ]);
           }
         });
-        this.startBattle();
+        this.startRevealPhase();
       }
     }, 1000);
 
