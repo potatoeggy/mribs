@@ -454,6 +454,49 @@ export default function BattleWrapper({
                   );
                 }
               }
+              if (event.type === "dash") {
+                scene.playDashEffect(
+                  event.playerId as string,
+                  (event.x as number) || 0,
+                  (event.y as number) || 0,
+                );
+                scene.playSound("dash");
+              }
+              if (event.type === "chargeStart") {
+                scene.playChargeEffect(
+                  event.playerId as string,
+                  (event.x as number) || 0,
+                  (event.y as number) || 0,
+                  true,
+                );
+                scene.playSound("chargeStart");
+              }
+              if (event.type === "chargeHit") {
+                scene.playChargeEffect(
+                  event.playerId as string,
+                  (event.x as number) || 0,
+                  (event.y as number) || 0,
+                  false,
+                );
+                scene.playSound("chargeHit");
+              }
+              if (event.type === "aoeExplosion") {
+                scene.playAOEEffect(
+                  (event.x as number) || 0,
+                  (event.y as number) || 0,
+                  (event.radius as number) || 50,
+                );
+                scene.playSound("aoeExplosion");
+              }
+              if (event.type === "special") {
+                scene.playSpecialEffect(
+                  (event.x as number) || 0,
+                  (event.y as number) || 0,
+                  (event.effectType as string) || "knockback",
+                  event.targetId as string | undefined,
+                );
+                scene.playSound("special");
+              }
             }
           },
         );

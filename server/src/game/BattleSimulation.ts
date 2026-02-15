@@ -7,6 +7,9 @@ import {
   PROJECTILE_SIZE,
   PROJECTILE_LIFETIME,
   BATTLE_INK_COSTS,
+  PLATFORMS,
+  AOE_DAMAGE_SCALING,
+  type PlatformConfig,
 } from "./BalanceConfig";
 
 // ---- Lightweight types mirroring shared/types without import issues ----
@@ -23,6 +26,17 @@ interface ProjectileState {
   age: number;
   homing: boolean; // Whether projectile homes in on target
   speed: number; // Base speed for homing calculations
+  isAOE: boolean; // Whether projectile explodes on impact
+  aoeRadius: number; // Explosion radius for AOE projectiles
+}
+
+interface Platform {
+  config: PlatformConfig;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  angle: number; // For circular movement
 }
 
 interface AbilityState {
@@ -31,7 +45,7 @@ interface AbilityState {
   cooldownMax: number;
   label: string;
   // Ability params stored for activation
-  params: Record<string, number | string>;
+  params: Record<string, number | string | boolean>;
 }
 
 interface FighterState {
@@ -46,6 +60,7 @@ interface FighterState {
   ink: number;
   maxInk: number;
   inkRegen: number;
+  inkSpentOnCreation: number; // Ink spent drawing this character (for AOE scaling)
   facingRight: boolean;
   isOnGround: boolean;
   isShielding: boolean;
@@ -61,15 +76,30 @@ interface FighterState {
   isDead: boolean; // Track if death event already sent
   comboCounter: number; // Track combo hits for varied attacks
   chargeTimer: number; // Track charge time for power attacks
+  isCharging: boolean; // Currently charging an attack
+  isInvulnerable: boolean; // Temporary invulnerability (e.g., during dash)
+  invulnerabilityTimer: number; // Time remaining for invulnerability
+  stunned: boolean; // Cannot move or attack
+  stunnedTimer: number; // Time remaining stunned
+  slowed: boolean; // Reduced movement speed
+  slowedTimer: number; // Time remaining slowed
+  poisoned: boolean; // Taking damage over time
+  poisonedTimer: number; // Time remaining poisoned
+  poisonDamage: number; // Damage per second from poison
+  onPlatformId: number | null; // ID of platform fighter is standing on
 }
 
 export interface BattleEvent {
-  type: "damage" | "projectileSpawn" | "shieldActivate" | "death" | "meleeHit";
+  type: "damage" | "projectileSpawn" | "shieldActivate" | "death" | "meleeHit"
+    | "dash" | "chargeStart" | "chargeHit" | "aoeExplosion" | "special";
   playerId: string;
   targetId?: string;
   amount?: number;
   x?: number;
   y?: number;
+  radius?: number; // For AOE effects
+  effectType?: string; // For special abilities
+  soundType?: string; // Custom sound for special
 }
 
 /**
@@ -79,10 +109,23 @@ export interface BattleEvent {
 export class BattleSimulation {
   fighters: Map<string, FighterState> = new Map();
   projectiles: ProjectileState[] = [];
+  platforms: Platform[] = [];
   events: BattleEvent[] = [];
   private nextProjectileId = 0;
   private battleStartTime: number = 0;
   private readonly BATTLE_START_DELAY_SEC = 6; // Wait for countdown before autoattacks
+
+  constructor() {
+    // Initialize platforms from config
+    this.platforms = PLATFORMS.map((config, index) => ({
+      config,
+      x: config.x,
+      y: config.y,
+      vx: 0,
+      vy: 0,
+      angle: 0,
+    }));
+  }
 
   addFighter(
     id: string,
@@ -92,9 +135,10 @@ export class BattleSimulation {
     config: {
       maxHp: number;
       movementSpeed: number;
-      abilities: { type: string; params: Record<string, number | string> }[];
+      abilities: { type: string; params: Record<string, number | string | boolean> }[];
       battleInkMax: number;
       battleInkRegen: number;
+      inkSpentOnCreation?: number;
     }
   ): void {
     const abilities: AbilityState[] = config.abilities.map((a) => ({
@@ -120,6 +164,7 @@ export class BattleSimulation {
       ink: config.battleInkMax,
       maxInk: config.battleInkMax,
       inkRegen: config.battleInkRegen,
+      inkSpentOnCreation: config.inkSpentOnCreation || 100,
       facingRight,
       isOnGround: true,
       isShielding: false,
@@ -135,6 +180,17 @@ export class BattleSimulation {
       isDead: false,
       comboCounter: 0,
       chargeTimer: 0,
+      isCharging: false,
+      isInvulnerable: false,
+      invulnerabilityTimer: 0,
+      stunned: false,
+      stunnedTimer: 0,
+      slowed: false,
+      slowedTimer: 0,
+      poisoned: false,
+      poisonedTimer: 0,
+      poisonDamage: 0,
+      onPlatformId: null,
     });
   }
 
@@ -192,7 +248,7 @@ export class BattleSimulation {
       case "fireProjectile": {
         const baseSpeed = (ability.params.speed as number) || 5;
         const projSpeed = baseSpeed * 100;
-        const isHoming = (ability.params.homing as boolean) || false;
+        const isHoming = Boolean(ability.params.homing);
         let vx: number, vy: number;
 
         if (targetX !== undefined && targetY !== undefined) {
@@ -218,6 +274,8 @@ export class BattleSimulation {
           age: 0,
           homing: isHoming,
           speed: baseSpeed,
+          isAOE: false,
+          aoeRadius: 0,
         });
 
         this.events.push({
@@ -270,6 +328,17 @@ export class BattleSimulation {
           dir = fighter.facingRight ? 1 : -1;
         }
         fighter.vx = dir * dashDist * 5;
+
+        // Grant brief invulnerability during dash
+        fighter.isInvulnerable = true;
+        fighter.invulnerabilityTimer = 0.2;
+
+        this.events.push({
+          type: "dash",
+          playerId,
+          x: fighter.x,
+          y: fighter.y,
+        });
         break;
       }
 
@@ -279,7 +348,183 @@ export class BattleSimulation {
         fighter.isOnGround = false;
         break;
       }
+
+      case "chargeAttack": {
+        // Start charging
+        fighter.isCharging = true;
+        fighter.chargeTimer = (ability.params.chargeTime as number) || 1.0;
+
+        this.events.push({
+          type: "chargeStart",
+          playerId,
+          x: fighter.x,
+          y: fighter.y,
+        });
+        break;
+      }
+
+      case "meleeAOE": {
+        // Close-range area effect attack
+        const radius = (ability.params.radius as number) || 80;
+        const baseDamage = (ability.params.damage as number) || 15;
+
+        // Apply ink scaling
+        const inkScaledDamage = this.applyInkScaling(fighter, baseDamage);
+
+        // Hit all enemies within radius
+        let hitCount = 0;
+        for (const [, target] of this.fighters) {
+          if (target.ownerId === fighter.ownerId) continue;
+          if (target.hp <= 0) continue;
+
+          const dx = target.x - fighter.x;
+          const dy = target.y - fighter.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist <= radius + PLAYER_SIZE.width / 2) {
+            this.applyDamage(target, inkScaledDamage, playerId);
+            hitCount++;
+
+            this.events.push({
+              type: "damage",
+              playerId,
+              targetId: target.id,
+              amount: inkScaledDamage,
+              x: target.x,
+              y: target.y,
+            });
+          }
+        }
+
+        // Broadcast AOE explosion event
+        this.events.push({
+          type: "aoeExplosion",
+          playerId,
+          x: fighter.x,
+          y: fighter.y,
+          radius,
+        });
+        break;
+      }
+
+      case "rangedAOE": {
+        // Explosive projectile
+        const baseSpeed = (ability.params.speed as number) || 4;
+        const projSpeed = baseSpeed * 100;
+        const radius = (ability.params.radius as number) || 75;
+        const baseDamage = (ability.params.damage as number) || 20;
+
+        let vx: number, vy: number;
+        if (targetX !== undefined && targetY !== undefined) {
+          const dx = targetX - fighter.x;
+          const dy = targetY - fighter.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          vx = (dx / dist) * projSpeed;
+          vy = (dy / dist) * projSpeed;
+        } else {
+          vx = (fighter.facingRight ? 1 : -1) * projSpeed;
+          vy = 0;
+        }
+
+        this.projectiles.push({
+          id: `proj_${this.nextProjectileId++}`,
+          ownerId: playerId,
+          x: fighter.x + (fighter.facingRight ? 30 : -30),
+          y: fighter.y - 10,
+          vx,
+          vy,
+          damage: baseDamage,
+          active: true,
+          age: 0,
+          homing: false,
+          speed: baseSpeed,
+          isAOE: true,
+          aoeRadius: radius,
+        });
+
+        this.events.push({
+          type: "projectileSpawn",
+          playerId,
+          x: fighter.x,
+          y: fighter.y,
+        });
+        break;
+      }
+
+      case "special": {
+        const effectType = (ability.params.effectType as string) || "knockback";
+        const power = (ability.params.power as number) || 20;
+        const duration = (ability.params.duration as number) || 2;
+
+        if (opponent) {
+          const dx = opponent.x - fighter.x;
+          const dy = opponent.y - fighter.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const range = 150; // Special ability range
+
+          if (dist <= range + PLAYER_SIZE.width) {
+            switch (effectType) {
+              case "stun":
+                opponent.stunned = true;
+                opponent.stunnedTimer = duration;
+                break;
+
+              case "slow":
+                opponent.slowed = true;
+                opponent.slowedTimer = duration;
+                break;
+
+              case "poison":
+                opponent.poisoned = true;
+                opponent.poisonedTimer = duration;
+                opponent.poisonDamage = power;
+                break;
+
+              case "knockback": {
+                const knockbackDirection = Math.sign(dx) || 1;
+                opponent.vx += knockbackDirection * power * 50;
+                opponent.vy -= power * 0.8;
+                opponent.isOnGround = false;
+                break;
+              }
+
+              case "lifesteal":
+                this.applyDamage(opponent, power, playerId);
+                fighter.hp = Math.min(fighter.maxHp, fighter.hp + power * 0.5);
+                break;
+
+              case "teleport": {
+                // Teleport behind opponent
+                const teleportX = opponent.x + (opponent.x > fighter.x ? -80 : 80);
+                fighter.x = Math.max(30, Math.min(ARENA_WIDTH - 30, teleportX));
+                fighter.facingRight = opponent.x > fighter.x;
+                break;
+              }
+            }
+
+            this.events.push({
+              type: "special",
+              playerId,
+              targetId: opponent.id,
+              amount: power,
+              x: opponent.x,
+              y: opponent.y,
+              effectType,
+            });
+          }
+        }
+        break;
+      }
     }
+  }
+
+  /**
+   * Apply ink scaling to AOE damage based on ink spent during drawing.
+   */
+  private applyInkScaling(fighter: FighterState, baseDamage: number): number {
+    const inkSpent = fighter.inkSpentOnCreation;
+    const multiplier = 1 + inkSpent / AOE_DAMAGE_SCALING.inkDivisor;
+    return baseDamage * multiplier;
   }
 
   /**
@@ -326,6 +571,58 @@ export class BattleSimulation {
 
     const battleReady = this.isBattleReady();
 
+    // Update platforms
+    for (const platform of this.platforms) {
+      const config = platform.config;
+
+      switch (config.pattern) {
+        case "horizontal":
+          if (config.speed && config.minX !== undefined && config.maxX !== undefined) {
+            platform.x += platform.vx * dt;
+            if (platform.x >= config.maxX) {
+              platform.x = config.maxX;
+              platform.vx = -config.speed;
+            } else if (platform.x <= config.minX) {
+              platform.x = config.minX;
+              platform.vx = config.speed;
+            } else if (platform.vx === 0) {
+              platform.vx = config.speed;
+            }
+          }
+          break;
+
+        case "vertical":
+          if (config.speed && config.minY !== undefined && config.maxY !== undefined) {
+            platform.y += platform.vy * dt;
+            if (platform.y >= config.maxY) {
+              platform.y = config.maxY;
+              platform.vy = -config.speed;
+            } else if (platform.y <= config.minY) {
+              platform.y = config.minY;
+              platform.vy = config.speed;
+            } else if (platform.vy === 0) {
+              platform.vy = config.speed;
+            }
+          }
+          break;
+
+        case "circular":
+          if (config.speed && config.radius && config.centerX !== undefined && config.centerY !== undefined) {
+            platform.angle += (config.speed / config.radius) * dt;
+            platform.x = config.centerX + Math.cos(platform.angle) * config.radius;
+            platform.y = config.centerY + Math.sin(platform.angle) * config.radius;
+            platform.vx = -Math.sin(platform.angle) * config.speed;
+            platform.vy = Math.cos(platform.angle) * config.speed;
+          }
+          break;
+
+        case "static":
+        default:
+          // No movement
+          break;
+      }
+    }
+
     for (const [, fighter] of this.fighters) {
       if (fighter.hp <= 0 || fighter.isDead) continue;
 
@@ -347,8 +644,36 @@ export class BattleSimulation {
       // Apply friction
       fighter.vx *= FRICTION;
 
-      // Ground collision
-      if (fighter.y >= GROUND_Y) {
+      // Platform collision
+      let onPlatform = false;
+      fighter.onPlatformId = null;
+
+      for (let i = 0; i < this.platforms.length; i++) {
+        const platform = this.platforms[i];
+        const config = platform.config;
+
+        // Check if fighter is above platform and descending/stationary
+        const isAbovePlatform = fighter.y <= platform.y && fighter.y + PLAYER_SIZE.height / 2 >= platform.y - 10;
+        const isWithinPlatformX = fighter.x >= platform.x - config.width / 2 && fighter.x <= platform.x + config.width / 2;
+        const isDescending = fighter.vy >= 0;
+
+        if (isAbovePlatform && isWithinPlatformX && isDescending) {
+          // Land on platform
+          fighter.y = platform.y;
+          fighter.vy = 0;
+          fighter.isOnGround = true;
+          onPlatform = true;
+          fighter.onPlatformId = i;
+
+          // Inherit platform velocity
+          fighter.vx += platform.vx * dt * 60;
+          fighter.vy += platform.vy * dt * 60;
+          break;
+        }
+      }
+
+      // Ground collision (if not on platform)
+      if (!onPlatform && fighter.y >= GROUND_Y) {
         fighter.y = GROUND_Y;
         fighter.vy = 0;
         fighter.isOnGround = true;
@@ -379,8 +704,88 @@ export class BattleSimulation {
         }
       }
 
+      // Invulnerability timer
+      if (fighter.isInvulnerable) {
+        fighter.invulnerabilityTimer -= dt;
+        if (fighter.invulnerabilityTimer <= 0) {
+          fighter.isInvulnerable = false;
+          fighter.invulnerabilityTimer = 0;
+        }
+      }
+
+      // Status effect timers
+      if (fighter.stunned) {
+        fighter.stunnedTimer -= dt;
+        if (fighter.stunnedTimer <= 0) {
+          fighter.stunned = false;
+          fighter.stunnedTimer = 0;
+        }
+      }
+
+      if (fighter.slowed) {
+        fighter.slowedTimer -= dt;
+        if (fighter.slowedTimer <= 0) {
+          fighter.slowed = false;
+          fighter.slowedTimer = 0;
+        }
+      }
+
+      if (fighter.poisoned) {
+        fighter.poisonedTimer -= dt;
+        if (fighter.poisonedTimer <= 0) {
+          fighter.poisoned = false;
+          fighter.poisonedTimer = 0;
+          fighter.poisonDamage = 0;
+        } else {
+          // Apply poison damage over time
+          const poisonDmg = fighter.poisonDamage * dt;
+          this.applyDamage(fighter, poisonDmg);
+        }
+      }
+
       // Ink regen (disabled - no regeneration in new system)
       // fighter.ink = Math.min(fighter.maxInk, fighter.ink + fighter.inkRegen * dt);
+
+      // Charge attack timer
+      if (fighter.isCharging) {
+        fighter.chargeTimer -= dt;
+        if (fighter.chargeTimer <= 0) {
+          // Release charged attack
+          fighter.isCharging = false;
+          fighter.chargeTimer = 0;
+
+          const opponent = this.getOpponent(fighter.id);
+          if (opponent) {
+            const ability = fighter.abilities.find((a) => a.type === "chargeAttack");
+            if (ability) {
+              const dx = opponent.x - fighter.x;
+              const dy = opponent.y - fighter.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              const range = 100; // Charge attack range
+
+              if (dist <= range + PLAYER_SIZE.width) {
+                const damage = (ability.params.damage as number) || 35;
+                this.applyDamage(opponent, damage, fighter.id);
+
+                // Apply extra knockback
+                const knockbackDirection = Math.sign(dx) || 1;
+                opponent.vx += knockbackDirection * damage * 40;
+                opponent.vy -= damage * 0.6;
+                opponent.isOnGround = false;
+
+                this.events.push({
+                  type: "chargeHit",
+                  playerId: fighter.id,
+                  targetId: opponent.id,
+                  amount: damage,
+                  x: opponent.x,
+                  y: opponent.y,
+                });
+              }
+            }
+          }
+        }
+      }
 
       // Update facing direction toward opponent
       const opponent = this.getOpponent(fighter.id);
@@ -439,8 +844,108 @@ export class BattleSimulation {
         }
       }
 
-      // Autoattack logic - only after battle countdown finishes
-      if (battleReady && opponent && opponent.hp > 0) {
+      // AI Auto-trigger abilities
+      if (battleReady && opponent && opponent.hp > 0 && !fighter.stunned && !fighter.isCharging) {
+        const dx = opponent.x - fighter.x;
+        const dy = opponent.y - fighter.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Auto-trigger DASH
+        const dashAbility = fighter.abilities.find((a) => a.type === "dash");
+        if (dashAbility && dashAbility.cooldownRemaining <= 0) {
+          const inkCost = BATTLE_INK_COSTS.dash || 10;
+          let shouldDash = false;
+
+          // Gap closer: enemy far away
+          if (dist > 200 && fighter.ink >= inkCost) {
+            shouldDash = Math.random() < 0.3;
+          }
+
+          // Retreat: enemy very close and low HP
+          if (dist < 50 && fighter.hp < fighter.maxHp * 0.3 && fighter.ink >= inkCost) {
+            shouldDash = Math.random() < 0.5;
+          }
+
+          if (shouldDash) {
+            this.handleAbility(fighter.id, "dash", opponent.x, opponent.y);
+          }
+        }
+
+        // Auto-trigger SHIELD
+        const shieldAbility = fighter.abilities.find((a) => a.type === "shield");
+        if (shieldAbility && shieldAbility.cooldownRemaining <= 0 && !fighter.isShielding) {
+          const inkCost = BATTLE_INK_COSTS.shield || 15;
+          let shouldShield = false;
+
+          // Incoming projectile detected
+          for (const proj of this.projectiles) {
+            if (!proj.active) continue;
+            const projTeam = this.getTeamId(proj.ownerId);
+            if (projTeam === fighter.ownerId) continue;
+
+            const projDx = proj.x - fighter.x;
+            const projDy = proj.y - fighter.y;
+            const projDist = Math.sqrt(projDx * projDx + projDy * projDy);
+
+            if (projDist < 100) {
+              const projVelToFighter = proj.vx * projDx + proj.vy * projDy;
+              if (projVelToFighter < 0 && fighter.ink >= inkCost) {
+                shouldShield = Math.random() < 0.6;
+                break;
+              }
+            }
+          }
+
+          // Enemy charging attack nearby
+          if (opponent.isCharging && dist < 120 && fighter.ink >= inkCost) {
+            shouldShield = Math.random() < 0.7;
+          }
+
+          // Low HP defensive mode
+          if (fighter.hp < fighter.maxHp * 0.3 && fighter.ink >= inkCost) {
+            shouldShield = Math.random() < 0.4;
+          }
+
+          if (shouldShield) {
+            this.handleAbility(fighter.id, "shield");
+          }
+        }
+
+        // Auto-trigger CHARGE ATTACK
+        const chargeAbility = fighter.abilities.find((a) => a.type === "chargeAttack");
+        if (chargeAbility && chargeAbility.cooldownRemaining <= 0) {
+          const inkCost = BATTLE_INK_COSTS.chargeAttack || 20;
+          let shouldCharge = false;
+
+          // Enemy in range, not under immediate threat, random chance
+          if (dist < 150 && dist > 50 && fighter.hp > fighter.maxHp * 0.3 && fighter.ink >= inkCost) {
+            shouldCharge = Math.random() < 0.3;
+          }
+
+          if (shouldCharge) {
+            this.handleAbility(fighter.id, "chargeAttack");
+          }
+        }
+
+        // Auto-trigger SPECIAL ATTACK
+        const specialAbility = fighter.abilities.find((a) => a.type === "special");
+        if (specialAbility && specialAbility.cooldownRemaining <= 0) {
+          const inkCost = BATTLE_INK_COSTS.special || 25;
+          let shouldSpecial = false;
+
+          // Random 20% chance when cooldown ready
+          if (fighter.ink >= inkCost) {
+            shouldSpecial = Math.random() < 0.2;
+          }
+
+          if (shouldSpecial) {
+            this.handleAbility(fighter.id, "special");
+          }
+        }
+      }
+
+      // Autoattack logic - only after battle countdown finishes (and not stunned or charging)
+      if (battleReady && opponent && opponent.hp > 0 && !fighter.stunned && !fighter.isCharging) {
         fighter.autoAttackCooldown = Math.max(0, fighter.autoAttackCooldown - dt);
 
         const dx = opponent.x - fighter.x;
@@ -448,13 +953,15 @@ export class BattleSimulation {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         // AI Movement: Move toward opponent if out of melee range
+        const speedMultiplier = fighter.slowed ? 0.5 : 1.0;
+
         if (fighter.primaryAttackType === "melee") {
           const ability = fighter.abilities.find((a) => a.type === "melee");
           const meleeRange = (ability?.params.range as number) || 40;
 
           if (dist > meleeRange + PLAYER_SIZE.width + 10) {
             // Move toward opponent
-            const moveSpeed = fighter.movementSpeed * 50;
+            const moveSpeed = fighter.movementSpeed * 50 * speedMultiplier;
             fighter.vx += (dx / dist) * moveSpeed * dt * 60;
           } else {
             // Stop when in range
@@ -465,7 +972,7 @@ export class BattleSimulation {
           if (fighter.autoAttackCooldown <= 0 && fighter.idleTargetX !== undefined) {
             const idleDx = fighter.idleTargetX - fighter.x;
             if (Math.abs(idleDx) > 20) {
-              const idleMoveSpeed = fighter.movementSpeed * 20;
+              const idleMoveSpeed = fighter.movementSpeed * 20 * speedMultiplier;
               fighter.vx += Math.sign(idleDx) * idleMoveSpeed * dt * 60;
             }
           }
@@ -514,7 +1021,7 @@ export class BattleSimulation {
                 } else if (ability.type === "fireProjectile") {
                   const baseSpeed = (ability.params.speed as number) || 5;
                   const projSpeed = baseSpeed * 100;
-                  const isHoming = (ability.params.homing as boolean) || false;
+                  const isHoming = Boolean(ability.params.homing);
                   const baseDamage = (ability.params.damage as number) || 10;
 
                   // Double shot for combo attacks
@@ -539,6 +1046,8 @@ export class BattleSimulation {
                       age: 0,
                       homing: isHoming,
                       speed: baseSpeed,
+                      isAOE: false,
+                      aoeRadius: 0,
                     });
                   }
 
@@ -607,16 +1116,55 @@ export class BattleSimulation {
 
         if (dist < PLAYER_SIZE.width / 2 + PROJECTILE_SIZE) {
           // Hit!
-          this.applyDamage(fighter, proj.damage, proj.ownerId);
+          if (proj.isAOE) {
+            // AOE explosion - hit all enemies within radius
+            const owner = this.fighters.get(proj.ownerId);
+            const inkScaledDamage = owner ? this.applyInkScaling(owner, proj.damage) : proj.damage;
+
+            for (const [, target] of this.fighters) {
+              if (target.ownerId === projTeam) continue;
+              if (target.hp <= 0) continue;
+
+              const tdx = target.x - proj.x;
+              const tdy = target.y - proj.y;
+              const tdist = Math.sqrt(tdx * tdx + tdy * tdy);
+
+              if (tdist <= proj.aoeRadius + PLAYER_SIZE.width / 2) {
+                this.applyDamage(target, inkScaledDamage, proj.ownerId);
+
+                this.events.push({
+                  type: "damage",
+                  playerId: proj.ownerId,
+                  targetId: target.id,
+                  amount: inkScaledDamage,
+                  x: target.x,
+                  y: target.y,
+                });
+              }
+            }
+
+            // Broadcast AOE explosion
+            this.events.push({
+              type: "aoeExplosion",
+              playerId: proj.ownerId,
+              x: proj.x,
+              y: proj.y,
+              radius: proj.aoeRadius,
+            });
+          } else {
+            // Regular single-target projectile
+            this.applyDamage(fighter, proj.damage, proj.ownerId);
+            this.events.push({
+              type: "damage",
+              playerId: proj.ownerId,
+              targetId: fighter.id,
+              amount: proj.damage,
+              x: proj.x,
+              y: proj.y,
+            });
+          }
+
           proj.active = false;
-          this.events.push({
-            type: "damage",
-            playerId: proj.ownerId,
-            targetId: fighter.id,
-            amount: proj.damage,
-            x: proj.x,
-            y: proj.y,
-          });
           break;
         }
       }

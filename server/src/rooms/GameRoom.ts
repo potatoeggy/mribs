@@ -48,6 +48,7 @@ export class GameRoom extends Room<GameStateSchema> {
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private playerConfigs: Map<string, FighterConfig> = new Map();
   private playerDrawings: Map<string, string> = new Map(); // sessionId -> base64 PNG
+  private playerInkSpent: Map<string, number> = new Map(); // sessionId -> ink spent during drawing
   private playerGestureMoves: Map<string, GestureMove[]> = new Map();
   private gestureCooldowns: Map<string, number> = new Map(); // "sessionId" -> time until ready (global cooldown)
   private readonly GESTURE_COOLDOWN_SEC = 2;
@@ -190,8 +191,7 @@ export class GameRoom extends Room<GameStateSchema> {
 
     // Store ink spent for AI analysis
     if (data.inkSpent !== undefined) {
-      const inkSpentKey = `${client.sessionId}_inkSpent`;
-      (this as Record<string, number>)[inkSpentKey] = data.inkSpent;
+      this.playerInkSpent.set(client.sessionId, data.inkSpent);
     }
 
     let allSubmitted = true;
@@ -360,10 +360,11 @@ export class GameRoom extends Room<GameStateSchema> {
         movementSpeed: data.config.movement.speed,
         abilities: data.config.abilities.map((a) => ({
           type: a.type,
-          params: a.params as Record<string, number | string>,
+          params: a.params as Record<string, number | string | boolean>,
         })),
         battleInkMax: summonedInk,
         battleInkRegen: 0, // Summoned fighters don't regen ink
+        inkSpentOnCreation: inkCost, // For AOE damage scaling
       },
     );
 
@@ -482,15 +483,19 @@ export class GameRoom extends Room<GameStateSchema> {
       const startX = playerIndex === 0 ? 150 : ARENA_WIDTH - 150;
       const facingRight = playerIndex === 0;
 
+      // Retrieve ink spent during drawing
+      const inkSpent = this.playerInkSpent.get(sessionId) || 100;
+
       this.battleSim!.addFighter(sessionId, sessionId, startX, facingRight, {
         maxHp: config.health.maxHp,
         movementSpeed: config.movement.speed,
         abilities: config.abilities.map((a) => ({
           type: a.type,
-          params: a.params as Record<string, number | string>,
+          params: a.params as Record<string, number | string | boolean>,
         })),
         battleInkMax: this.state.battleInkMax,
         battleInkRegen: this.state.battleInkRegen,
+        inkSpentOnCreation: inkSpent, // For AOE damage scaling
       });
 
       // Set initial position

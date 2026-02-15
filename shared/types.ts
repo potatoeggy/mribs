@@ -12,11 +12,16 @@ export type GamePhase =
   | "result";
 
 // --- Component Types ---
-export type ComponentType = 
+export type ComponentType =
   | "movement"
   | "flying"
-  | "fireProjectile"
+  | "ranged"
+  | "fireProjectile" // deprecated, use "ranged"
   | "melee"
+  | "meleeAOE"
+  | "rangedAOE"
+  | "chargeAttack"
+  | "special"
   | "shield"
   | "dash";
 
@@ -55,9 +60,38 @@ export interface DashParams {
   cooldown: number; // 2-5 seconds
 }
 
+export interface MeleeAOEParams {
+  damage: number; // 8-25
+  radius: number; // 60-120 pixels
+  cooldown: number; // 2-5 seconds
+}
+
+export interface RangedAOEParams {
+  damage: number; // 10-30
+  radius: number; // 50-100 pixels
+  speed: number; // 2-6
+  cooldown: number; // 2-6 seconds
+  label: string; // e.g. "Explosive Shot"
+}
+
+export interface ChargeAttackParams {
+  damage: number; // 20-50
+  chargeTime: number; // 0.8-1.5 seconds
+  cooldown: number; // 4-8 seconds
+}
+
+export interface SpecialParams {
+  effectType: "stun" | "slow" | "poison" | "knockback" | "lifesteal" | "teleport";
+  power: number; // 10-40
+  duration: number; // 1-5 seconds
+  cooldown: number; // 8-15 seconds
+  label: string; // e.g. "Shadow Strike"
+}
+
 export interface AbilityConfig {
   type: ComponentType;
-  params: MovementParams | FlyingParams | ProjectileParams | MeleeParams | ShieldParams | DashParams;
+  params: MovementParams | FlyingParams | ProjectileParams | MeleeParams | ShieldParams | DashParams
+    | MeleeAOEParams | RangedAOEParams | ChargeAttackParams | SpecialParams;
 }
 
 // --- Gesture-based battle moves (from AI interpretation of drawing) ---
@@ -98,6 +132,8 @@ export interface ProjectileState {
   vy: number;
   damage: number;
   active: boolean;
+  isAOE?: boolean; // True if projectile explodes on impact
+  aoeRadius?: number; // Explosion radius for AOE projectiles
 }
 
 export interface PlayerBattleState {
@@ -181,9 +217,14 @@ export interface GestureResult {
 // --- Ink costs for battle actions ---
 export const BATTLE_INK_COSTS: Record<string, number> = {
   move: 1,
-  fireProjectile: 12,
+  ranged: 12,
+  fireProjectile: 12, // deprecated
   melee: 8,
+  meleeAOE: 15,
+  rangedAOE: 18,
   shield: 15,
   dash: 10,
+  chargeAttack: 20,
+  special: 25,
   flying: 5,
 };
