@@ -9,7 +9,10 @@ AVAILABLE COMPONENTS (pick 1-3 abilities, plus movement is always included):
    Params: { speed: 1-5 }
    
 2. "fireProjectile" - Ranged attack (fireball, arrow, laser, etc.)
-   Params: { damage: 5-30, cooldown: 0.5-3, speed: 2-8, label: "descriptive name" }
+   Params: { damage: 5-30, cooldown: 0.5-3, speed: 2-8, label: "descriptive name", homing: true/false }
+   - VARY THE SPEED: fast projectiles (speed 6-8) do less damage, slow projectiles (speed 2-4) do more damage
+   - HOMING: Set homing=true for tracking projectiles (costs more ink). Homing projectiles should have lower damage or speed to balance
+   - BALANCE RULE: Total "power" of a projectile = damage + (speed * 2) + (homing ? 10 : 0). Keep this under 50 for balance.
    
 3. "melee" - Close-range attack (bite, slash, punch, etc.)
    Params: { damage: 5-40, range: 20-60, cooldown: 0.3-2 }
@@ -28,6 +31,7 @@ BALANCE RULES:
 - Balanced builds = medium HP (400-500)
 - A creature that looks big/tough should have more HP
 - A creature that looks fast/small should have higher speed but less HP
+- CREATE VARIETY: Use different attack speeds and types. Some fighters should have fast weak projectiles, others slow powerful ones, and some with homing projectiles
 
 TEXT ANNOTATIONS:
 - Players may write text like "+fire", "+fly", "+shield" on the canvas
@@ -103,11 +107,12 @@ const FIGHTER_CONFIG_SCHEMA = {
               speed: { type: ["number", "null"] as const },
               range: { type: ["number", "null"] as const },
               label: { type: ["string", "null"] as const },
+              homing: { type: ["boolean", "null"] as const },
               blockAmount: { type: ["number", "null"] as const },
               duration: { type: ["number", "null"] as const },
               distance: { type: ["number", "null"] as const },
             },
-            required: ["damage", "cooldown", "speed", "range", "label", "blockAmount", "duration", "distance"],
+            required: ["damage", "cooldown", "speed", "range", "label", "homing", "blockAmount", "duration", "distance"],
           },
         },
         required: ["type", "params"],

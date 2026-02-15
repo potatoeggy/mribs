@@ -26,6 +26,8 @@ interface ProjectileState {
   damage: number;
   active: boolean;
   age: number;
+  homing: boolean; // Whether projectile homes in on target
+  speed: number; // Base speed for homing calculations
 }
 
 interface AbilityState {
@@ -57,6 +59,9 @@ interface FighterState {
   movementSpeed: number;
   autoAttackCooldown: number; // Time until next autoattack
   primaryAttackType: string; // Type of primary attack (melee or fireProjectile)
+  idleTimer: number; // Time until next idle movement
+  idleTargetX?: number; // Target position for idle wandering
+  jumpCooldown: number; // Time until can jump again (dodge)
 }
 
 export interface BattleEvent {
@@ -77,6 +82,8 @@ export class BattleSimulation {
   projectiles: ProjectileState[] = [];
   events: BattleEvent[] = [];
   private nextProjectileId = 0;
+  private battleStartTime: number = 0;
+  private readonly BATTLE_START_DELAY_SEC = 6; // Wait for countdown before autoattacks
 
   addFighter(
     id: string,
@@ -121,6 +128,9 @@ export class BattleSimulation {
       movementSpeed: config.movementSpeed,
       autoAttackCooldown: 0,
       primaryAttackType,
+      idleTimer: Math.random() * 3 + 1, // Start with random idle timer
+      idleTargetX: undefined,
+      jumpCooldown: 0,
     });
   }
 
@@ -176,7 +186,9 @@ export class BattleSimulation {
 
     switch (abilityType) {
       case "fireProjectile": {
-        const projSpeed = ((ability.params.speed as number) || 5) * 100;
+        const baseSpeed = (ability.params.speed as number) || 5;
+        const projSpeed = baseSpeed * 100;
+        const isHoming = (ability.params.homing as boolean) || false;
         let vx: number, vy: number;
 
         if (targetX !== undefined && targetY !== undefined) {
@@ -200,6 +212,8 @@ export class BattleSimulation {
           damage: (ability.params.damage as number) || 10,
           active: true,
           age: 0,
+          homing: isHoming,
+          speed: baseSpeed,
         });
 
         this.events.push({
@@ -220,7 +234,7 @@ export class BattleSimulation {
 
           if (dist <= range + PLAYER_SIZE.width) {
             const damage = (ability.params.damage as number) || 15;
-            this.applyDamage(opponent, damage);
+            this.applyDamage(opponent, damage, playerId);
             this.events.push({
               type: "meleeHit",
               playerId,
@@ -274,7 +288,7 @@ export class BattleSimulation {
     const opponent = this.getOpponent(playerId);
     if (!opponent || opponent.hp <= 0) return;
 
-    this.applyDamage(opponent, damage);
+    this.applyDamage(opponent, damage, playerId);
     this.events.push({
       type: "meleeHit",
       playerId,
@@ -286,10 +300,27 @@ export class BattleSimulation {
   }
 
   /**
+   * Initialize battle start time (call this when battle phase begins).
+   */
+  startBattle(): void {
+    this.battleStartTime = Date.now() / 1000;
+  }
+
+  /**
+   * Check if battle has started (countdown finished).
+   */
+  private isBattleReady(): boolean {
+    const elapsed = Date.now() / 1000 - this.battleStartTime;
+    return elapsed >= this.BATTLE_START_DELAY_SEC;
+  }
+
+  /**
    * Run one physics tick.
    */
   tick(dt: number): BattleEvent[] {
     this.events = [];
+
+    const battleReady = this.isBattleReady();
 
     for (const [, fighter] of this.fighters) {
       if (fighter.hp <= 0) continue;
@@ -353,8 +384,57 @@ export class BattleSimulation {
         fighter.facingRight = opponent.x > fighter.x;
       }
 
-      // Autoattack logic
-      if (opponent && opponent.hp > 0) {
+      // Jump cooldown
+      fighter.jumpCooldown = Math.max(0, fighter.jumpCooldown - dt);
+
+      // Idle movement timer
+      fighter.idleTimer -= dt;
+      if (fighter.idleTimer <= 0) {
+        // Pick a new random idle target
+        fighter.idleTimer = Math.random() * 4 + 2; // 2-6 seconds between movements
+        fighter.idleTargetX = Math.random() * (ARENA_WIDTH - 100) + 50;
+      }
+
+      // Dodging logic: Check for incoming projectiles and jump to dodge
+      if (battleReady && fighter.isOnGround && fighter.jumpCooldown <= 0) {
+        for (const proj of this.projectiles) {
+          if (proj.ownerId === fighter.id || !proj.active) continue;
+
+          const dx = proj.x - fighter.x;
+          const dy = proj.y - fighter.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          // If projectile is close and heading toward fighter, try to dodge
+          if (dist < 150) {
+            const projVelToFighter = proj.vx * dx + proj.vy * dy;
+            if (projVelToFighter < 0) { // Projectile moving toward fighter
+              // 40% chance to dodge when projectile is incoming
+              if (Math.random() < 0.4) {
+                fighter.vy = -350; // Jump
+                fighter.isOnGround = false;
+                fighter.jumpCooldown = 1.5; // Can't jump again for 1.5 seconds
+                break;
+              }
+            }
+          }
+        }
+
+        // Also dodge when opponent is very close (melee range)
+        if (opponent && opponent.hp > 0 && Math.random() < 0.15) {
+          const dx = opponent.x - fighter.x;
+          const dy = opponent.y - fighter.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 80) { // Very close
+            fighter.vy = -350; // Jump
+            fighter.isOnGround = false;
+            fighter.jumpCooldown = 2; // Can't jump again for 2 seconds
+          }
+        }
+      }
+
+      // Autoattack logic - only after battle countdown finishes
+      if (battleReady && opponent && opponent.hp > 0) {
         fighter.autoAttackCooldown = Math.max(0, fighter.autoAttackCooldown - dt);
 
         const dx = opponent.x - fighter.x;
@@ -373,6 +453,15 @@ export class BattleSimulation {
           } else {
             // Stop when in range
             fighter.vx *= 0.85;
+          }
+        } else {
+          // Ranged fighters: do idle movement when not attacking
+          if (fighter.autoAttackCooldown <= 0 && fighter.idleTargetX !== undefined) {
+            const idleDx = fighter.idleTargetX - fighter.x;
+            if (Math.abs(idleDx) > 20) {
+              const idleMoveSpeed = fighter.movementSpeed * 20;
+              fighter.vx += Math.sign(idleDx) * idleMoveSpeed * dt * 60;
+            }
           }
         }
 
@@ -400,7 +489,7 @@ export class BattleSimulation {
                 // Execute attack
                 if (ability.type === "melee") {
                   const damage = (ability.params.damage as number) || 15;
-                  this.applyDamage(opponent, damage);
+                  this.applyDamage(opponent, damage, fighter.id);
                   this.events.push({
                     type: "meleeHit",
                     playerId: fighter.id,
@@ -408,7 +497,9 @@ export class BattleSimulation {
                     amount: damage,
                   });
                 } else if (ability.type === "fireProjectile") {
-                  const projSpeed = ((ability.params.speed as number) || 5) * 100;
+                  const baseSpeed = (ability.params.speed as number) || 5;
+                  const projSpeed = baseSpeed * 100;
+                  const isHoming = (ability.params.homing as boolean) || false;
                   const vx = (dx / dist) * projSpeed;
                   const vy = (dy / dist) * projSpeed;
 
@@ -422,6 +513,8 @@ export class BattleSimulation {
                     damage: (ability.params.damage as number) || 10,
                     active: true,
                     age: 0,
+                    homing: isHoming,
+                    speed: baseSpeed,
                   });
 
                   this.events.push({
@@ -441,6 +534,26 @@ export class BattleSimulation {
     // Update projectiles
     for (const proj of this.projectiles) {
       if (!proj.active) continue;
+
+      // Homing projectile logic
+      if (proj.homing) {
+        // Find target (opponent of projectile owner)
+        const target = this.getOpponent(proj.ownerId);
+        if (target && target.hp > 0) {
+          const dx = target.x - proj.x;
+          const dy = target.y - proj.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+          // Gradually adjust velocity toward target
+          const homingStrength = 0.15; // How quickly it homes in
+          const targetSpeed = proj.speed * 100;
+          const targetVx = (dx / dist) * targetSpeed;
+          const targetVy = (dy / dist) * targetSpeed;
+
+          proj.vx += (targetVx - proj.vx) * homingStrength;
+          proj.vy += (targetVy - proj.vy) * homingStrength;
+        }
+      }
 
       proj.x += proj.vx * dt;
       proj.y += proj.vy * dt;
@@ -469,7 +582,7 @@ export class BattleSimulation {
 
         if (dist < PLAYER_SIZE.width / 2 + PROJECTILE_SIZE) {
           // Hit!
-          this.applyDamage(fighter, proj.damage);
+          this.applyDamage(fighter, proj.damage, proj.ownerId);
           proj.active = false;
           this.events.push({
             type: "damage",
@@ -503,7 +616,7 @@ export class BattleSimulation {
   /**
    * Apply damage to a fighter, accounting for shields.
    */
-  private applyDamage(fighter: FighterState, amount: number): void {
+  private applyDamage(fighter: FighterState, amount: number, attackerId?: string): void {
     if (fighter.isShielding && fighter.shieldHp > 0) {
       const blocked = Math.min(amount, fighter.shieldHp);
       fighter.shieldHp -= blocked;
@@ -513,6 +626,19 @@ export class BattleSimulation {
       }
     }
     fighter.hp = Math.max(0, fighter.hp - amount);
+
+    // Apply knockback (3x multiplier for more dynamic battles)
+    if (attackerId && amount > 0) {
+      const attacker = this.fighters.get(attackerId);
+      if (attacker) {
+        const dx = fighter.x - attacker.x;
+        const knockbackForce = amount * 15; // 3x multiplier (base was 5, now 15)
+        fighter.vx += Math.sign(dx) * knockbackForce;
+        // Slight upward knock for dramatic effect
+        fighter.vy -= knockbackForce * 0.3;
+        fighter.isOnGround = false;
+      }
+    }
   }
 
   /**

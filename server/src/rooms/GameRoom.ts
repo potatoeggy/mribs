@@ -418,6 +418,9 @@ export class GameRoom extends Room<GameStateSchema> {
       playerIndex++;
     });
 
+    // Initialize battle start time
+    this.battleSim.startBattle();
+
     // Start game loop
     const tickDt = 1 / SERVER_TICK_RATE;
     let tickCount = 0;
@@ -508,6 +511,8 @@ export class GameRoom extends Room<GameStateSchema> {
 
     this.battleSim.fighters.forEach((fighter, id) => {
       const player = this.state.players.get(id);
+      // Skip summoned fighters (they don't have a PlayerSchema entry)
+      // They're rendered client-side via the fighterSummoned message
       if (!player) return;
 
       player.x = fighter.x;

@@ -10,6 +10,7 @@ interface FighterDisplay {
   shieldGraphic: Phaser.GameObjects.Arc | null;
   targetX: number;
   targetY: number;
+  teamColor: string; // Player's team color for HP bar and sprite tint
   /** When set, update() skips position lerp until this time (ms) - for attack animations */
   ignoreLerpUntil?: number;
 }
@@ -31,6 +32,7 @@ interface BattleState {
     facingRight: boolean;
     isShielding: boolean;
     fighterName: string;
+    teamColor?: string;
     abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
   }>;
   projectiles: { id: string; x: number; y: number; ownerId: string }[];
@@ -234,10 +236,12 @@ export class BattleScene extends Phaser.Scene {
       let fighter = this.fighters.get(id);
 
       if (!fighter) {
-        fighter = this.createFighterDisplay(id, data.fighterName);
+        fighter = this.createFighterDisplay(id, data.fighterName, data.teamColor || "#1a1a1a");
         this.fighters.set(id, fighter);
         // Animate character spawn
         this.animateCharacterSpawn(id);
+        // Apply team color tint to sprite
+        this.applyTeamColorToSprite(fighter);
       }
 
       fighter.targetX = data.x;
@@ -247,9 +251,11 @@ export class BattleScene extends Phaser.Scene {
         fighter.sprite.setFlipX(!data.facingRight);
       }
 
+      // Use team color for HP bar instead of health-based colors
       const hpFraction = Math.max(0, data.hp / data.maxHp);
       fighter.hpBarFill.width = 48 * hpFraction;
-      fighter.hpBarFill.fillColor = hpFraction > 0.5 ? 0x2ecc71 : hpFraction > 0.25 ? 0xf39c12 : 0xe74c3c;
+      const teamColorInt = Phaser.Display.Color.HexStringToColor(fighter.teamColor).color;
+      fighter.hpBarFill.fillColor = teamColorInt;
 
       if (data.isShielding) {
         if (!fighter.shieldGraphic) {
@@ -348,6 +354,8 @@ export class BattleScene extends Phaser.Scene {
           newSprite.setDepth(3);
           oldSprite.destroy();
           fighter.sprite = newSprite;
+          // Apply team color tint to new sprite
+          this.applyTeamColorToSprite(fighter);
         }
       } catch {
         // scene was destroyed before image loaded
@@ -754,7 +762,7 @@ export class BattleScene extends Phaser.Scene {
     g.fillRect(0, GROUND_Y + 5, ARENA_WIDTH, ARENA_HEIGHT - GROUND_Y);
   }
 
-  private createFighterDisplay(id: string, name: string): FighterDisplay {
+  private createFighterDisplay(id: string, name: string, teamColor: string): FighterDisplay {
     const sprite = this.add.rectangle(ARENA_WIDTH / 2, GROUND_Y, 50, 60, 0x333333);
     sprite.setDepth(3);
 
@@ -770,7 +778,9 @@ export class BattleScene extends Phaser.Scene {
     hpBarBg.setStrokeStyle(1, 0x666666);
     hpBarBg.setDepth(4);
 
-    const hpBarFill = this.add.rectangle(sprite.x - 24, sprite.y - 42, 48, 6, 0x2ecc71);
+    // Start with team color for HP bar
+    const teamColorInt = Phaser.Display.Color.HexStringToColor(teamColor).color;
+    const hpBarFill = this.add.rectangle(sprite.x - 24, sprite.y - 42, 48, 6, teamColorInt);
     hpBarFill.setOrigin(0, 0.5);
     hpBarFill.setDepth(5);
 
@@ -783,7 +793,23 @@ export class BattleScene extends Phaser.Scene {
       shieldGraphic: null,
       targetX: sprite.x,
       targetY: sprite.y,
+      teamColor,
     };
+  }
+
+  private applyTeamColorToSprite(fighter: FighterDisplay): void {
+    // Apply a color tint to the sprite based on team color
+    // Only apply tint to Image sprites (not Rectangles)
+    if (fighter.sprite instanceof Phaser.GameObjects.Image) {
+      const color = Phaser.Display.Color.HexStringToColor(fighter.teamColor);
+      const tintColor = Phaser.Display.Color.GetColor(color.red, color.green, color.blue);
+      fighter.sprite.setTint(tintColor);
+    } else if (fighter.sprite instanceof Phaser.GameObjects.Rectangle) {
+      // For Rectangle placeholders, just change the fill color
+      const color = Phaser.Display.Color.HexStringToColor(fighter.teamColor);
+      const fillColor = Phaser.Display.Color.GetColor(color.red, color.green, color.blue);
+      fighter.sprite.setFillStyle(fillColor);
+    }
   }
 
   private removeFighter(id: string): void {

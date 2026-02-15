@@ -35,6 +35,7 @@ export interface ProjectileParams {
   cooldown: number; // 0.5-3 seconds
   speed: number; // 2-8
   label: string; // e.g. "Fireball", "Arrow"
+  homing?: boolean; // Whether projectile homes in on target
 }
 
 export interface MeleeParams {

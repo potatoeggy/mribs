@@ -63,6 +63,7 @@ function parseRoomState(room: Room) {
     facingRight: boolean;
     isShielding: boolean;
     fighterName: string;
+    teamColor?: string;
     abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
   }>();
 
@@ -77,6 +78,7 @@ function parseRoomState(room: Room) {
       facingRight: p.facingRight as boolean,
       isShielding: p.isShielding as boolean,
       fighterName: p.fighterName as string,
+      teamColor: (p.teamColor as string) || "#1a1a1a",
       abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
         abilityType: a.abilityType as string,
         cooldownRemaining: a.cooldownRemaining as number,
@@ -485,7 +487,7 @@ export default function BattleWrapper({
   }, [room, mySessionId]);
 
   return (
-    <div className="flex flex-col items-center gap-2 w-full">
+    <div className="flex flex-col items-center gap-3 w-full">
       <div
         ref={arenaWrapperRef}
         className="relative w-full max-w-[800px] aspect-[8/5] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg"
@@ -513,27 +515,27 @@ export default function BattleWrapper({
             ⚔️ Autoattacking
           </div>
         )}
-
-        {/* Summon button */}
-        {battleReady && (
-          <button
-            onClick={() => setIsSummonModalOpen(true)}
-            disabled={myInk < SUMMON_INK_COST || isSummoning}
-            className="absolute bottom-2 right-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-hand font-bold text-sm rounded-lg transition-colors border-2 border-white shadow-lg flex items-center gap-2"
-          >
-            ✨ Summon ({SUMMON_INK_COST} ink)
-          </button>
-        )}
       </div>
 
-      {/* Summon modal */}
-      <SummonDrawingModal
-        isOpen={isSummonModalOpen}
-        onClose={() => setIsSummonModalOpen(false)}
-        onSubmit={handleSummonSubmit}
-        inkCost={SUMMON_INK_COST}
-        currentInk={myInk}
-      />
+      {/* Inline summon UI - always visible during battle */}
+      {battleReady && (
+        <div className="w-full max-w-[800px] p-4 bg-white/90 backdrop-blur-sm border-2 border-gray-800 rounded-lg shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-hand text-lg font-bold text-gray-800">Quick Summon</h3>
+            <span className="font-hand text-sm text-gray-600">
+              Cost: {SUMMON_INK_COST} ink ({myInk} available)
+            </span>
+          </div>
+          <SummonDrawingModal
+            isOpen={true}
+            onClose={() => {}}
+            onSubmit={handleSummonSubmit}
+            inkCost={SUMMON_INK_COST}
+            currentInk={myInk}
+            inline={true}
+          />
+        </div>
+      )}
     </div>
   );
 }

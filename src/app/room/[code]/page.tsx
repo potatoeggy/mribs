@@ -10,7 +10,7 @@ import DrawingCanvas from "@/components/DrawingCanvas";
 import OpponentCanvas from "@/components/OpponentCanvas";
 import RevealScreen from "@/components/RevealScreen";
 import ResultScreen from "@/components/ResultScreen";
-import HealthBar from "@/components/HealthBar";
+import InkBar from "@/components/InkBar";
 import AbilityHUD from "@/components/AbilityHUD";
 import type { FighterConfig } from "@shared/types";
 import type { Stroke } from "@/lib/ink";
@@ -57,6 +57,7 @@ interface PlayerData {
   fighterDescription: string;
   spriteData: string;
   gestureMoveSummary: string;
+  teamColor: string;
   abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
 }
 
@@ -165,6 +166,7 @@ export default function GameRoomPage() {
               fighterDescription: p.fighterDescription as string,
               spriteData: p.spriteData as string,
               gestureMoveSummary: (p.gestureMoveSummary as string) || "",
+              teamColor: (p.teamColor as string) || "#1a1a1a",
               abilities: (p.abilities as Array<Record<string, unknown>> | undefined)?.map((a: Record<string, unknown>) => ({
                 abilityType: a.abilityType as string,
                 cooldownRemaining: a.cooldownRemaining as number,
@@ -643,21 +645,23 @@ export default function GameRoomPage() {
             )}
             {(phase === "battle" || (phase === "result" && !showResultScreen)) && room && (
           <div className="flex-1 flex flex-col gap-3 p-4">
-            {/* HP bars row */}
+            {/* Ink bars row */}
             <div className="flex items-start justify-between gap-4 px-4 flex-wrap">
               <div className="flex-1 flex items-start justify-between gap-8 min-w-0">
-              <HealthBar
-                hp={myPlayer?.hp || 0}
-                maxHp={myPlayer?.maxHp || 100}
+              <InkBar
+                ink={myPlayer?.ink || 0}
+                maxInk={myPlayer?.maxInk || 100}
                 name={myPlayer?.fighterName || "You"}
                 side="left"
+                color={myPlayer?.teamColor || "#ef4444"}
               />
               <span className="text-2xl font-bold text-gray-400 mt-2">VS</span>
-              <HealthBar
-                hp={opponentPlayer?.hp || 0}
-                maxHp={opponentPlayer?.maxHp || 100}
+              <InkBar
+                ink={opponentPlayer?.ink || 0}
+                maxInk={opponentPlayer?.maxInk || 100}
                 name={opponentPlayer?.fighterName || "Opponent"}
                 side="right"
+                color={opponentPlayer?.teamColor || "#3b82f6"}
               />
               </div>
             </div>
