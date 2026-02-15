@@ -296,8 +296,7 @@ export class BattleScene extends Phaser.Scene {
         this.fighters.set(id, fighter);
         // Animate character spawn
         this.animateCharacterSpawn(id);
-        // Apply team color tint to sprite
-        this.applyTeamColorToSprite(fighter);
+        // Don't apply team color tint - keep sprites transparent with original colors
       }
 
       fighter.targetX = data.x;
@@ -335,8 +334,7 @@ export class BattleScene extends Phaser.Scene {
           this.fighters.set(id, fighter);
           // Animate character spawn
           this.animateCharacterSpawn(id);
-          // Apply team color tint to sprite
-          this.applyTeamColorToSprite(fighter);
+          // Don't apply team color tint - keep sprites transparent with original colors
           // Load sprite if available
           if (data.spriteData) {
             this.loadFighterSprite(id, data.spriteData);
@@ -443,8 +441,7 @@ export class BattleScene extends Phaser.Scene {
           newSprite.setDepth(3);
           oldSprite.destroy();
           fighter.sprite = newSprite;
-          // Apply team color tint to new sprite
-          this.applyTeamColorToSprite(fighter);
+          // Don't apply team color tint - keep sprite transparent with original colors
         }
       } catch {
         // scene was destroyed before image loaded
@@ -906,14 +903,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private applyTeamColorToSprite(fighter: FighterDisplay): void {
-    // Apply a color tint to the sprite based on team color
-    // Only apply tint to Image sprites (not Rectangles)
-    if (fighter.sprite instanceof Phaser.GameObjects.Image) {
-      const color = Phaser.Display.Color.HexStringToColor(fighter.teamColor);
-      const tintColor = Phaser.Display.Color.GetColor(color.red, color.green, color.blue);
-      fighter.sprite.setTint(tintColor);
-    } else if (fighter.sprite instanceof Phaser.GameObjects.Rectangle) {
-      // For Rectangle placeholders, just change the fill color
+    // REMOVED: Don't tint sprites - we want to see the drawn lines with transparency
+    // Only apply team color to placeholder rectangles before sprite loads
+    if (fighter.sprite instanceof Phaser.GameObjects.Rectangle) {
       const color = Phaser.Display.Color.HexStringToColor(fighter.teamColor);
       const fillColor = Phaser.Display.Color.GetColor(color.red, color.green, color.blue);
       fighter.sprite.setFillStyle(fillColor);

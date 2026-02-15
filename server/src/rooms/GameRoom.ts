@@ -279,7 +279,12 @@ export class GameRoom extends Room<GameStateSchema> {
       return;
     }
 
+    // Deduct ink from both schema and simulation
     player.ink -= inkCost;
+    const fighter = this.battleSim.fighters.get(client.sessionId);
+    if (fighter) {
+      fighter.ink -= inkCost;
+    }
 
     // Generate unique fighter ID
     const fighterId = `${client.sessionId}_summon_${Date.now()}`;

@@ -29,46 +29,46 @@ const LiveCommentator = forwardRef<LiveCommentatorHandle, LiveCommentatorProps>(
     const isReadyRef = useRef(false);
     const pendingLineRef = useRef<string | null>(null);
     const isSpeakingRef = useRef(false);
-    const queueRef = useRef<string[]>([]);
 
-    const processQueue = useCallback(() => {
+    const doSpeak = useCallback((text: string) => {
       const session = sessionRef.current;
-      if (!session || !isReadyRef.current || isSpeakingRef.current) return;
+      if (!session || !isReadyRef.current) {
+        // Replace pending line with latest (don't queue)
+        pendingLineRef.current = text;
+        return;
+      }
 
-      const next = queueRef.current.shift();
-      if (!next) return;
+      if (isSpeakingRef.current) {
+        // Replace pending line with latest (don't queue)
+        pendingLineRef.current = text;
+        return;
+      }
 
+      pendingLineRef.current = null;
       isSpeakingRef.current = true;
+
       try {
-        session.message(next);
+        session.message(text);
         // Estimate speech duration: ~150 words per minute, ~5 chars per word
-        const words = next.length / 5;
+        const words = text.length / 5;
         const durationMs = (words / 150) * 60 * 1000;
         // Add extra buffer time
         const totalDuration = Math.max(2000, durationMs + 500);
 
         setTimeout(() => {
           isSpeakingRef.current = false;
-          processQueue();
+          // If there's a pending line, speak it now
+          const next = pendingLineRef.current;
+          if (next) {
+            pendingLineRef.current = null;
+            doSpeak(next);
+          }
         }, totalDuration);
       } catch (err) {
         console.warn("Commentator speak error:", err);
         isSpeakingRef.current = false;
-        processQueue();
       }
     }, []);
-
-    const doSpeak = useCallback((text: string) => {
-      const session = sessionRef.current;
-      if (!session || !isReadyRef.current) {
-        pendingLineRef.current = text;
-        return;
-      }
-      pendingLineRef.current = null;
-      // Add to queue instead of speaking immediately
-      queueRef.current.push(text);
-      processQueue();
-    }, [processQueue]);
 
     const speak = useCallback((text: string) => {
       doSpeak(text);
