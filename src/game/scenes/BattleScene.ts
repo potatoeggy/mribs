@@ -231,7 +231,18 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  updateState(state: BattleState): void {
+  updateState(state: BattleState, summonedFighters?: Map<string, {
+    id: string;
+    name: string;
+    x: number;
+    y: number;
+    hp: number;
+    maxHp: number;
+    facingRight: boolean;
+    spriteData: string;
+    teamColor: string;
+  }>): void {
+    // Update main players
     state.players.forEach((data, id) => {
       let fighter = this.fighters.get(id);
 
@@ -269,8 +280,41 @@ export class BattleScene extends Phaser.Scene {
       }
     });
 
+    // Update summoned fighters
+    if (summonedFighters) {
+      summonedFighters.forEach((data, id) => {
+        let fighter = this.fighters.get(id);
+
+        if (!fighter) {
+          fighter = this.createFighterDisplay(id, data.name, data.teamColor);
+          this.fighters.set(id, fighter);
+          // Animate character spawn
+          this.animateCharacterSpawn(id);
+          // Apply team color tint to sprite
+          this.applyTeamColorToSprite(fighter);
+          // Load sprite if available
+          if (data.spriteData) {
+            this.loadFighterSprite(id, data.spriteData);
+          }
+        }
+
+        fighter.targetX = data.x;
+        fighter.targetY = data.y;
+
+        if (fighter.sprite instanceof Phaser.GameObjects.Image) {
+          fighter.sprite.setFlipX(!data.facingRight);
+        }
+
+        const hpFraction = Math.max(0, data.hp / data.maxHp);
+        fighter.hpBarFill.width = 48 * hpFraction;
+        const teamColorInt = Phaser.Display.Color.HexStringToColor(fighter.teamColor).color;
+        fighter.hpBarFill.fillColor = teamColorInt;
+      });
+    }
+
+    // Remove fighters that no longer exist
     for (const [id] of this.fighters) {
-      if (!state.players.has(id)) {
+      if (!state.players.has(id) && !(summonedFighters && summonedFighters.has(id))) {
         this.removeFighter(id);
       }
     }

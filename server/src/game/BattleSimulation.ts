@@ -62,6 +62,7 @@ interface FighterState {
   idleTimer: number; // Time until next idle movement
   idleTargetX?: number; // Target position for idle wandering
   jumpCooldown: number; // Time until can jump again (dodge)
+  isDead: boolean; // Track if death event already sent
 }
 
 export interface BattleEvent {
@@ -131,6 +132,7 @@ export class BattleSimulation {
       idleTimer: Math.random() * 3 + 1, // Start with random idle timer
       idleTargetX: undefined,
       jumpCooldown: 0,
+      isDead: false,
     });
   }
 
@@ -323,7 +325,7 @@ export class BattleSimulation {
     const battleReady = this.isBattleReady();
 
     for (const [, fighter] of this.fighters) {
-      if (fighter.hp <= 0) continue;
+      if (fighter.hp <= 0 || fighter.isDead) continue;
 
       // Apply gravity
       if (!fighter.isOnGround) {
@@ -600,9 +602,10 @@ export class BattleSimulation {
     // Remove inactive projectiles
     this.projectiles = this.projectiles.filter((p) => p.active);
 
-    // Check for death
+    // Check for death (only emit event once per fighter)
     for (const [, fighter] of this.fighters) {
-      if (fighter.hp <= 0) {
+      if (fighter.hp <= 0 && !fighter.isDead) {
+        fighter.isDead = true;
         this.events.push({
           type: "death",
           playerId: fighter.id,
@@ -642,11 +645,11 @@ export class BattleSimulation {
   }
 
   /**
-   * Get the opponent of a given player.
+   * Get the opponent of a given player (first alive opponent).
    */
   private getOpponent(playerId: string): FighterState | undefined {
     for (const [id, fighter] of this.fighters) {
-      if (id !== playerId) return fighter;
+      if (id !== playerId && !fighter.isDead && fighter.hp > 0) return fighter;
     }
     return undefined;
   }
@@ -657,7 +660,7 @@ export class BattleSimulation {
   getWinnerId(): string | null {
     const alive: string[] = [];
     for (const [id, fighter] of this.fighters) {
-      if (fighter.hp > 0) alive.push(id);
+      if (fighter.hp > 0 && !fighter.isDead) alive.push(id);
     }
     if (alive.length === 1) return alive[0];
     if (alive.length === 0) return "draw";

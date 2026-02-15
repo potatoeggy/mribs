@@ -42,9 +42,23 @@ export class PlayerSchema extends Schema {
   @type("string") teamColor: string = "#1a1a1a"; // Player's team color (red or blue)
 }
 
+export class SummonedFighterSchema extends Schema {
+  @type("string") id: string = "";
+  @type("string") ownerId: string = ""; // Which player summoned this
+  @type("string") name: string = "";
+  @type("number") x: number = 0;
+  @type("number") y: number = 0;
+  @type("number") hp: number = 100;
+  @type("number") maxHp: number = 100;
+  @type("boolean") facingRight: boolean = true;
+  @type("string") spriteData: string = "";
+  @type("string") teamColor: string = "#1a1a1a";
+}
+
 export class GameStateSchema extends Schema {
   @type("string") phase: string = "lobby"; // lobby, drawing, analyzing, reveal, battle, result
   @type({"map": PlayerSchema}) players = new MapSchema<PlayerSchema>();
+  @type({"map": SummonedFighterSchema}) summonedFighters = new MapSchema<SummonedFighterSchema>();
   @type([ProjectileSchema]) projectiles = new ArraySchema<ProjectileSchema>();
   @type("number") timer: number = 0; // countdown timer for current phase
   @type("string") winnerId: string = "";

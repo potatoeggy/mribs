@@ -4,6 +4,7 @@ import {
   PlayerSchema,
   ProjectileSchema,
   AbilitySchema,
+  SummonedFighterSchema,
 } from "../schema/GameState";
 import { BattleSimulation } from "../game/BattleSimulation";
 import {
@@ -265,20 +266,20 @@ export class GameRoom extends Room<GameStateSchema> {
     }
   }
 
-  private handleSummonFighter(client: Client, data: { config: FighterConfig; spriteData?: string }): void {
+  private handleSummonFighter(client: Client, data: { config: FighterConfig; spriteData?: string; inkCost: number }): void {
     if (this.state.phase !== "battle" || !this.battleSim) return;
 
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
 
-    // Check ink cost for summoning (fixed cost)
-    const SUMMON_COST = 50;
-    if (player.ink < SUMMON_COST) {
+    // Check ink cost for summoning (dynamic based on drawing)
+    const inkCost = data.inkCost || 50;
+    if (player.ink < inkCost) {
       client.send("summonFailed", { reason: "Not enough ink" });
       return;
     }
 
-    player.ink -= SUMMON_COST;
+    player.ink -= inkCost;
 
     // Generate unique fighter ID
     const fighterId = `${client.sessionId}_summon_${Date.now()}`;
@@ -289,6 +290,8 @@ export class GameRoom extends Room<GameStateSchema> {
     const facingRight = playerIndex === 0;
 
     // Add fighter to battle simulation
+    // Summoned fighters get ink proportional to their creation cost
+    const summonedInk = Math.floor(inkCost * 0.5); // 50% of creation ink
     this.battleSim.addFighter(fighterId, startX, facingRight, {
       maxHp: data.config.health.maxHp,
       movementSpeed: data.config.movement.speed,
@@ -296,9 +299,23 @@ export class GameRoom extends Room<GameStateSchema> {
         type: a.type,
         params: a.params as Record<string, number | string>,
       })),
-      battleInkMax: 50, // Fixed ink pool for summoned fighters
-      battleInkRegen: this.state.battleInkRegen,
+      battleInkMax: summonedInk,
+      battleInkRegen: 0, // Summoned fighters don't regen ink
     });
+
+    // Create schema entry for summoned fighter
+    const summonedFighter = new SummonedFighterSchema();
+    summonedFighter.id = fighterId;
+    summonedFighter.ownerId = client.sessionId;
+    summonedFighter.name = data.config.name;
+    summonedFighter.x = startX;
+    summonedFighter.y = GROUND_Y;
+    summonedFighter.hp = data.config.health.maxHp;
+    summonedFighter.maxHp = data.config.health.maxHp;
+    summonedFighter.facingRight = facingRight;
+    summonedFighter.spriteData = data.spriteData || "";
+    summonedFighter.teamColor = player.teamColor;
+    this.state.summonedFighters.set(fighterId, summonedFighter);
 
     // Broadcast the summon event
     this.broadcast("fighterSummoned", {
@@ -309,9 +326,10 @@ export class GameRoom extends Room<GameStateSchema> {
       x: startX,
       y: GROUND_Y,
       facingRight,
+      teamColor: player.teamColor, // Pass team color for rendering
     });
 
-    console.log(`Player ${client.sessionId} summoned fighter ${fighterId}: ${data.config.name}`);
+    console.log(`Player ${client.sessionId} summoned fighter ${fighterId}: ${data.config.name} (cost: ${inkCost} ink)`);
   }
 
   // ---- Phase Transitions ----
@@ -480,6 +498,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.state.timer = 0;
     this.state.winnerId = "";
     this.state.projectiles.clear();
+    this.state.summonedFighters.clear();
 
     this.state.players.forEach((player) => {
       player.isReady = false;
@@ -511,29 +530,45 @@ export class GameRoom extends Room<GameStateSchema> {
 
     this.battleSim.fighters.forEach((fighter, id) => {
       const player = this.state.players.get(id);
-      // Skip summoned fighters (they don't have a PlayerSchema entry)
-      // They're rendered client-side via the fighterSummoned message
-      if (!player) return;
+      const summonedFighter = this.state.summonedFighters.get(id);
 
-      player.x = fighter.x;
-      player.y = fighter.y;
-      player.vx = fighter.vx;
-      player.vy = fighter.vy;
-      player.hp = fighter.hp;
-      player.ink = fighter.ink;
-      player.facingRight = fighter.facingRight;
-      player.isShielding = fighter.isShielding;
-      player.shieldHp = fighter.shieldHp;
+      if (player) {
+        // Sync main player fighter
 
-      // Sync ability cooldowns
-      for (let i = 0; i < player.abilities.length && i < fighter.abilities.length; i++) {
-        const playerAbility = player.abilities.at(i);
-        const fighterAbility = fighter.abilities[i];
-        if (playerAbility && fighterAbility) {
-          playerAbility.cooldownRemaining = fighterAbility.cooldownRemaining;
+        player.x = fighter.x;
+        player.y = fighter.y;
+        player.vx = fighter.vx;
+        player.vy = fighter.vy;
+        player.hp = fighter.hp;
+        player.ink = fighter.ink;
+        player.facingRight = fighter.facingRight;
+        player.isShielding = fighter.isShielding;
+        player.shieldHp = fighter.shieldHp;
+
+        // Sync ability cooldowns
+        for (let i = 0; i < player.abilities.length && i < fighter.abilities.length; i++) {
+          const playerAbility = player.abilities.at(i);
+          const fighterAbility = fighter.abilities[i];
+          if (playerAbility && fighterAbility) {
+            playerAbility.cooldownRemaining = fighterAbility.cooldownRemaining;
+          }
         }
+      } else if (summonedFighter) {
+        // Sync summoned fighter
+        summonedFighter.x = fighter.x;
+        summonedFighter.y = fighter.y;
+        summonedFighter.hp = fighter.hp;
+        summonedFighter.facingRight = fighter.facingRight;
       }
     });
+
+    // Remove dead summoned fighters
+    for (const [id, summonedFighter] of this.state.summonedFighters) {
+      const fighter = this.battleSim.fighters.get(id);
+      if (!fighter || fighter.isDead || fighter.hp <= 0) {
+        this.state.summonedFighters.delete(id);
+      }
+    }
 
     // Sync projectiles
     this.state.projectiles.clear();

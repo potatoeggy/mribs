@@ -37,11 +37,25 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+interface SummonedFighterData {
+  id: string;
+  ownerId: string;
+  name: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  facingRight: boolean;
+  spriteData: string;
+  teamColor: string;
+}
+
 interface BattleWrapperProps {
   room: Room;
   mySessionId: string;
   playerAbilities: string[];
   spriteDataMap: Map<string, string>;
+  summonedFighters: Map<string, SummonedFighterData>;
   gestureMoves?: GestureMove[];
   /** Callback to speak commentary lines (e.g. LiveCommentator) */
   onCommentary?: (line: string) => void;
@@ -103,6 +117,7 @@ export default function BattleWrapper({
   mySessionId,
   playerAbilities: _playerAbilities,
   spriteDataMap,
+  summonedFighters,
   gestureMoves = [],
   onCommentary,
   battleCountdownRemaining = 0,
@@ -125,6 +140,7 @@ export default function BattleWrapper({
   const [isSummonModalOpen, setIsSummonModalOpen] = useState(false);
   const [isSummoning, setIsSummoning] = useState(false);
   const [myInk, setMyInk] = useState(0);
+  const [myTeamColor, setMyTeamColor] = useState("#1a1a1a");
 
   const maybeCommentary = useCallback(async (context: {
     eventType: "attack" | "damage" | "death";
@@ -226,7 +242,7 @@ export default function BattleWrapper({
     [gestureMoves.length, getMoveByGesture, onGestureAttack, isOnAttackCooldown, battleReady]
   );
 
-  const handleSummonSubmit = useCallback(async (imageData: string) => {
+  const handleSummonSubmit = useCallback(async (imageData: string, inkSpent: number) => {
     setIsSummoning(true);
 
     try {
@@ -234,7 +250,7 @@ export default function BattleWrapper({
       const response = await fetch("/api/analyzeSummon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData }),
+        body: JSON.stringify({ imageData, inkSpent }),
       });
 
       if (!response.ok) {
@@ -246,10 +262,8 @@ export default function BattleWrapper({
       // Extract sprite from the drawing
       const spriteData = extractSprite(imageData, config.spriteBounds);
 
-      // Send to server
-      room.send("summonFighter", { config, spriteData });
-
-      setIsSummonModalOpen(false);
+      // Send to server with ink cost
+      room.send("summonFighter", { config, spriteData, inkCost: inkSpent });
     } catch (error) {
       console.error("Failed to summon fighter:", error);
       alert("Failed to summon fighter. Please try again.");
@@ -316,11 +330,11 @@ export default function BattleWrapper({
         const currentRoom = roomRef.current;
         if (!currentRoom) return;
 
-        scene.updateState(parseRoomState(currentRoom));
+        scene.updateState(parseRoomState(currentRoom), summonedFighters);
 
         currentRoom.onStateChange(() => {
           if (!scene) return;
-          scene.updateState(parseRoomState(currentRoom));
+          scene.updateState(parseRoomState(currentRoom), summonedFighters);
         });
 
         currentRoom.onMessage("battleEvents", (events: Array<Record<string, unknown>>) => {
@@ -468,18 +482,19 @@ export default function BattleWrapper({
     return () => clearInterval(id);
   }, [attackCooldownUntil]);
 
-  // Track player's ink
+  // Track player's ink and team color
   useEffect(() => {
-    const updateInk = () => {
+    const updatePlayerData = () => {
       const { players } = parseRoomState(room);
       const myPlayer = players.get(mySessionId);
       if (myPlayer) {
         setMyInk(myPlayer.ink);
+        setMyTeamColor(myPlayer.teamColor || "#1a1a1a");
       }
     };
 
-    updateInk();
-    room.onStateChange(updateInk);
+    updatePlayerData();
+    room.onStateChange(updatePlayerData);
 
     return () => {
       room.onStateChange.clear();
@@ -523,9 +538,16 @@ export default function BattleWrapper({
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-hand text-lg font-bold text-gray-800">Quick Summon</h3>
             <span className="font-hand text-sm text-gray-600">
-              Cost: {SUMMON_INK_COST} ink ({myInk} available)
+              {myInk.toFixed(0)} ink available
             </span>
           </div>
+          {isSummoning && (
+            <div className="mb-4 p-3 bg-purple-100 border-2 border-purple-400 rounded-lg">
+              <p className="text-purple-700 font-hand font-bold animate-pulse">
+                AI analyzing your summon... ✨
+              </p>
+            </div>
+          )}
           <SummonDrawingModal
             isOpen={true}
             onClose={() => {}}
@@ -533,6 +555,7 @@ export default function BattleWrapper({
             inkCost={SUMMON_INK_COST}
             currentInk={myInk}
             inline={true}
+            teamColor={myTeamColor}
           />
         </div>
       )}

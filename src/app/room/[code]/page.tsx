@@ -61,6 +61,19 @@ interface PlayerData {
   abilities: { abilityType: string; cooldownRemaining: number; cooldownMax: number; label: string }[];
 }
 
+interface SummonedFighterData {
+  id: string;
+  ownerId: string;
+  name: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  facingRight: boolean;
+  spriteData: string;
+  teamColor: string;
+}
+
 export default function GameRoomPage() {
   const params = useParams();
   const code = params.code as string;
@@ -69,6 +82,7 @@ export default function GameRoomPage() {
   const [phase, setPhase] = useState<string>("connecting");
   const [timer, setTimer] = useState(0);
   const [players, setPlayers] = useState<Map<string, PlayerData>>(new Map());
+  const [summonedFighters, setSummonedFighters] = useState<Map<string, SummonedFighterData>>(new Map());
   const [mySessionId, setMySessionId] = useState<string>("");
   const [roomCode, setRoomCode] = useState<string>("");
   const [winnerId, setWinnerId] = useState<string>("");
@@ -148,6 +162,7 @@ export default function GameRoomPage() {
           setDrawingTimeLimit(state.drawingTimeLimit as number);
 
           const newPlayers = new Map<string, PlayerData>();
+          const newSummonedFighters = new Map<string, SummonedFighterData>();
           (state.players as { forEach: (cb: (p: Record<string, unknown>, id: string) => void) => void }).forEach((p: Record<string, unknown>, id: string) => {
             newPlayers.set(id, {
               id: p.id as string,
@@ -176,6 +191,23 @@ export default function GameRoomPage() {
             });
           });
           setPlayers(newPlayers);
+
+          // Parse summoned fighters
+          (state.summonedFighters as { forEach: (cb: (f: Record<string, unknown>, id: string) => void) => void })?.forEach((f: Record<string, unknown>, id: string) => {
+            newSummonedFighters.set(id, {
+              id: f.id as string,
+              ownerId: f.ownerId as string,
+              name: f.name as string,
+              x: f.x as number,
+              y: f.y as number,
+              hp: f.hp as number,
+              maxHp: f.maxHp as number,
+              facingRight: f.facingRight as boolean,
+              spriteData: f.spriteData as string,
+              teamColor: f.teamColor as string,
+            });
+          });
+          setSummonedFighters(newSummonedFighters);
         });
 
         r.onMessage("startAnalysis", () => {
@@ -672,6 +704,7 @@ export default function GameRoomPage() {
               mySessionId={mySessionId}
               playerAbilities={myAbilities}
               spriteDataMap={spriteDataMap}
+              summonedFighters={summonedFighters}
               gestureMoves={phase === "battle" ? (myFighterConfig?.gestureMoves ?? []) : []}
               onCommentary={(!COMMENTATOR_HOST_ONLY || code === "new") ? (line) => commentatorRef.current?.speak(line) : undefined}
               battleCountdownRemaining={battleCountdown}
