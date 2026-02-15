@@ -536,12 +536,12 @@ export default function SpectatorPage() {
           (phase === "result" && !showResultScreen)) && (
           <div className="flex-1 flex flex-col">
             {/* Commentator: mount during reveal so it connects before battle */}
-            <div className="shrink-0 px-4 pt-2 flex items-start gap-4">
+            <div className="shrink-0 px-4 pt-2 flex items-center gap-4">
               <LiveCommentator
                 ref={commentatorRef}
                 avatarId={undefined}
                 voiceId={undefined}
-                className="w-[200px] shrink-0"
+                className="w-[340px] shrink-0"
               />
               {phase === "battle" || (phase === "result" && !showResultScreen) ? (
                 <div className="flex-1 flex items-center justify-center gap-8 min-w-0">
@@ -552,7 +552,7 @@ export default function SpectatorPage() {
                     side="left"
                     color={player1?.teamColor || "#ef4444"}
                   />
-                  <span className="text-2xl font-bold text-gray-400 mt-2">VS</span>
+                  <span className="text-2xl font-bold text-gray-400">VS</span>
                   <InkBar
                     ink={player2Ink}
                     maxInk={player2?.maxInk || 6000}
